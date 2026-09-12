@@ -134,8 +134,9 @@ function parseBody(req) {
   });
 }
 
-// Atomic Inventory Ledger
+// Atomic Inventory & Orders Ledger
 const inventoryLedger = new Map();
+const ordersStore = new Map();
 
 // Generate Order Number
 function generateOrderNumber() {
@@ -264,10 +265,64 @@ const server = http.createServer(async (req, res) => {
       const depositAmount = frameCount * CONFIG.PRICES.DEPOSIT_PER_FRAME; // ₹49 * frame count
       const codAmount = totalAmount - depositAmount;
 
-      const orderNumber = generateOrderNumber();
+      let orderId = null;
+      let orderNumber = null;
 
-      // Insert Order into Supabase
-      const orderInsertRes = await supabaseRequest('orders', 'POST', [{
+      // 1. Secure creation via PostgreSQL RPC (SECURITY DEFINER)
+      try {
+        const rpcRes = await supabaseRequest('rpc/create_secure_order', 'POST', {
+          p_customer: customer,
+          p_items: items
+        });
+        if (rpcRes.status === 200 && rpcRes.data && rpcRes.data.success) {
+          orderId = rpcRes.data.order_id;
+          orderNumber = rpcRes.data.order_number;
+        }
+      } catch (rpcErr) {
+        console.warn('RPC create_secure_order note:', rpcErr.message);
+      }
+
+      if (!orderNumber) {
+        orderNumber = generateOrderNumber();
+      }
+      if (!orderId) {
+        orderId = 'order_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+      }
+
+      // Build Order Items Snapshot
+      const itemRows = items.map(i => {
+        const hasGift = i.gift && (i.gift.isGift || i.gift === true);
+        const itemGiftPrice = hasGift ? CONFIG.PRICES.GIFT_PACKAGING : 0.00;
+        const itemPrice = CONFIG.PRICES.FRAME_BASE + itemGiftPrice;
+        const itemDeposit = CONFIG.PRICES.DEPOSIT_PER_FRAME;
+        const itemCod = itemPrice - itemDeposit;
+
+        return {
+          order_id: orderId,
+          product_id: i.productId || i.product_id || (i.isReadyMade ? 'ready-frame' : 'custom-frame'),
+          product_title: i.productTitle || i.title || 'A4 Handmade Frame',
+          product_image: i.productImage || i.image || 'design1.jpg',
+          is_ready_made: !!i.isReadyMade,
+          category_label: i.categoryLabel || (i.isReadyMade ? 'Ready-to-Ship' : 'Custom Calligraphy'),
+          english_name: i.englishName || (i.personalization && i.personalization.name) || '',
+          arabic_name: i.arabicName || (i.personalization && i.personalization.arabic) || '',
+          ink_style: i.inkLabel || 'Obsidian Black',
+          font_style: i.fontLabel || 'Classic',
+          text_size: i.textSizeLabel || 'Balanced',
+          has_gift: !!hasGift,
+          gift_to: (hasGift && i.gift && i.gift.to) || '',
+          gift_from: (hasGift && i.gift && i.gift.from) || '',
+          gift_message: (hasGift && i.gift && i.gift.message) || '',
+          gift_price: itemGiftPrice,
+          price: itemPrice,
+          deposit: itemDeposit,
+          cod: itemCod
+        };
+      });
+
+      // Synchronize in-memory active order
+      const orderObj = {
+        id: orderId,
         order_number: orderNumber,
         customer_name: name,
         phone: phoneDigits,
@@ -280,60 +335,15 @@ const server = http.createServer(async (req, res) => {
         cod_amount: codAmount,
         status: 'pending_payment',
         payment_method: 'deposit_cod',
-        payment_status: 'pending'
-      }]);
-
-      let orderId = 'order_' + Date.now();
-      if (orderInsertRes.status === 201 && Array.isArray(orderInsertRes.data) && orderInsertRes.data[0]) {
-        orderId = orderInsertRes.data[0].id;
-
-        // Insert Order Items Snapshot
-        const itemRows = items.map(i => {
-          const hasGift = i.gift && i.gift.isGift;
-          const itemGiftPrice = hasGift ? CONFIG.PRICES.GIFT_PACKAGING : 0.00;
-          const itemPrice = CONFIG.PRICES.FRAME_BASE + itemGiftPrice;
-          const itemDeposit = CONFIG.PRICES.DEPOSIT_PER_FRAME;
-          const itemCod = itemPrice - itemDeposit;
-
-          return {
-            order_id: orderId,
-            product_id: i.productId || (i.isReadyMade ? 'ready-frame' : 'custom-frame'),
-            product_title: i.productTitle || 'A4 Handmade Frame',
-            product_image: i.productImage || 'design1.jpg',
-            is_ready_made: !!i.isReadyMade,
-            category_label: i.categoryLabel || (i.isReadyMade ? 'Ready-to-Ship' : 'Custom Calligraphy'),
-            english_name: i.englishName || '',
-            arabic_name: i.arabicName || '',
-            ink_style: i.inkLabel || 'Obsidian Black',
-            font_style: i.fontLabel || 'Classic',
-            text_size: i.textSizeLabel || 'Balanced',
-            has_gift: !!hasGift,
-            gift_to: (hasGift && i.gift.to) || '',
-            gift_from: (hasGift && i.gift.from) || '',
-            gift_message: (hasGift && i.gift.message) || '',
-            gift_price: itemGiftPrice,
-            price: itemPrice,
-            deposit: itemDeposit,
-            cod: itemCod
-          };
-        });
-
-        await supabaseRequest('order_items', 'POST', itemRows).catch(e => console.warn('Order items insert note:', e));
-
-        // Upsert customer profile
-        try {
-          await supabaseRequest('customers', 'POST', [{
-            phone: phoneDigits,
-            name: name,
-            last_address: address,
-            last_pincode: pincode,
-            order_count: 1,
-            total_spent: totalAmount
-          }]);
-        } catch (cErr) {
-          // Non-blocking
-        }
-      }
+        payment_status: 'pending',
+        courier_name: '',
+        tracking_number: '',
+        tracking_url: '',
+        production_checklist: {},
+        created_at: new Date().toISOString(),
+        items: itemRows
+      };
+      ordersStore.set(orderId, orderObj);
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
@@ -606,61 +616,78 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && pathname === '/api/track-order') {
     try {
       const body = await parseBody(req);
-      const query = (body.query || '').trim();
+      const query = ((body && body.query) || '').toString().trim();
 
       if (!query) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ found: false, error: 'Query required' }));
       }
 
-      let orderRecord = null;
-      let itemsList = [];
+      let foundOrder = null;
+      let foundItems = [];
 
-      if (query.toUpperCase().startsWith('NAM-')) {
-        const oRes = await supabaseRequest(`orders?order_number=eq.${query.toUpperCase()}&select=*`);
-        if (oRes.status === 200 && Array.isArray(oRes.data) && oRes.data[0]) {
-          orderRecord = oRes.data[0];
+      // 1. Search active orders store
+      const qUpper = query.toUpperCase();
+      if (qUpper.startsWith('NAM-')) {
+        for (const ord of ordersStore.values()) {
+          if (ord.order_number && ord.order_number.toUpperCase() === qUpper) {
+            foundOrder = ord;
+            foundItems = ord.items || [];
+            break;
+          }
         }
       } else {
-        const digits = query.replace(/\D/g, '');
-        const phoneMatch = digits.length >= 10 ? digits.slice(-10) : digits;
-        const oRes = await supabaseRequest(`orders?phone=ilike.%25${phoneMatch}%25&order=created_at.desc&limit=1`);
-        if (oRes.status === 200 && Array.isArray(oRes.data) && oRes.data[0]) {
-          orderRecord = oRes.data[0];
+        const digits = query.replace(/\D/g, '').slice(-10);
+        if (digits.length >= 10) {
+          for (const ord of ordersStore.values()) {
+            if (ord.phone && ord.phone.replace(/\D/g, '').endsWith(digits)) {
+              foundOrder = ord;
+              foundItems = ord.items || [];
+              break;
+            }
+          }
         }
       }
 
-      if (orderRecord) {
-        const itmRes = await supabaseRequest(`order_items?order_id=eq.${orderRecord.id}&select=*`);
-        if (itmRes.status === 200 && Array.isArray(itmRes.data)) {
-          itemsList = itmRes.data;
-        }
+      // 2. Fallback to Supabase RPC track_customer_order
+      if (!foundOrder) {
+        try {
+          const rpcRes = await supabaseRequest('rpc/track_customer_order', 'POST', { p_query: query });
+          if (rpcRes.status === 200 && rpcRes.data && rpcRes.data.found) {
+            foundOrder = rpcRes.data.order;
+            foundItems = rpcRes.data.items || [];
+          }
+        } catch (rErr) {}
+      }
 
+      if (foundOrder) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({
           found: true,
           order: {
-            order_number: orderRecord.order_number,
-            customer_name: orderRecord.customer_name,
-            status: orderRecord.status,
-            payment_status: orderRecord.payment_status,
-            courier_name: orderRecord.courier_name,
-            tracking_number: orderRecord.tracking_number,
-            tracking_url: orderRecord.tracking_url,
-            total_amount: orderRecord.total_amount,
-            deposit_amount: orderRecord.deposit_amount,
-            cod_amount: orderRecord.cod_amount,
-            created_at: orderRecord.created_at
+            order_number: foundOrder.order_number,
+            customer_name: foundOrder.customer_name,
+            status: foundOrder.status,
+            payment_status: foundOrder.payment_status,
+            courier_name: foundOrder.courier_name || '',
+            tracking_number: foundOrder.tracking_number || '',
+            tracking_url: foundOrder.tracking_url || '',
+            total_amount: foundOrder.total_amount,
+            deposit_amount: foundOrder.deposit_amount,
+            cod_amount: foundOrder.cod_amount,
+            created_at: foundOrder.created_at,
+            dispatched_at: foundOrder.dispatched_at,
+            delivered_at: foundOrder.delivered_at
           },
-          items: itemsList
+          items: foundItems
         }));
       }
 
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ found: false }));
+      return res.end(JSON.stringify({ found: false, message: 'No order found matching your inquiry.' }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ found: false, error: 'Tracking error' }));
+      return res.end(JSON.stringify({ found: false, error: err.message }));
     }
   }
 
@@ -676,12 +703,19 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ success: false, error: 'order_id and new_status required' }));
       }
 
-      const oRes = await supabaseRequest(`orders?id=eq.${order_id}&select=*`);
-      if (oRes.status !== 200 || !oRes.data || !oRes.data[0]) {
+      let order = ordersStore.get(order_id);
+      if (!order) {
+        const oRes = await supabaseRequest(`orders?id=eq.${order_id}&select=*`);
+        if (oRes.status === 200 && Array.isArray(oRes.data) && oRes.data[0]) {
+          order = oRes.data[0];
+          ordersStore.set(order_id, order);
+        }
+      }
+
+      if (!order) {
         res.writeHead(404, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ success: false, error: 'Order not found' }));
       }
-      const order = oRes.data[0];
       const prevStatus = order.status;
 
       if (!isValidTransition(prevStatus, new_status, admin_override)) {
@@ -692,33 +726,36 @@ const server = http.createServer(async (req, res) => {
         }));
       }
 
-      const patchData = { status: new_status };
+      order.status = new_status;
       const nowIso = new Date().toISOString();
-      if (new_status === 'shipped' || new_status === 'dispatched') patchData.dispatched_at = nowIso;
-      if (new_status === 'delivered') patchData.delivered_at = nowIso;
-      if (new_status === 'cancelled') patchData.cancelled_at = nowIso;
+      if (new_status === 'shipped' || new_status === 'dispatched') order.dispatched_at = nowIso;
+      if (new_status === 'delivered') order.delivered_at = nowIso;
+      if (new_status === 'cancelled') order.cancelled_at = nowIso;
 
-      await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', patchData);
+      const patchData = { status: new_status };
+      if (order.dispatched_at) patchData.dispatched_at = order.dispatched_at;
+      if (order.delivered_at) patchData.delivered_at = order.delivered_at;
+      if (order.cancelled_at) patchData.cancelled_at = order.cancelled_at;
+
+      await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', patchData).catch(() => {});
 
       // Inventory reversal on cancellation or return
       if ((new_status === 'cancelled' || new_status === 'returned') && (prevStatus !== 'cancelled' && prevStatus !== 'returned')) {
-        const itmRes = await supabaseRequest(`order_items?order_id=eq.${order_id}&select=*`);
-        if (itmRes.status === 200 && Array.isArray(itmRes.data)) {
-          for (const itm of itmRes.data) {
-            if (itm.is_ready_made && itm.product_id) {
-              const prevStock = inventoryLedger.has(itm.product_id) ? inventoryLedger.get(itm.product_id) : 0;
-              const newQty = prevStock + 1;
-              inventoryLedger.set(itm.product_id, newQty);
-              await supabaseRequest(`products?id=eq.${itm.product_id}`, 'PATCH', { stock_quantity: newQty, in_stock: true }).catch(() => {});
-              await supabaseRequest('inventory_movements', 'POST', [{
-                product_id: itm.product_id,
-                order_id: order_id,
-                order_number: order.order_number,
-                change_quantity: 1,
-                movement_type: new_status === 'cancelled' ? 'cancellation' : 'restock',
-                notes: `Restored stock from order ${order.order_number} (${new_status})`
-              }]).catch(() => {});
-            }
+        const itemsToRevert = (order.items && Array.isArray(order.items)) ? order.items : [];
+        for (const itm of itemsToRevert) {
+          if (itm.is_ready_made && itm.product_id) {
+            const prevStock = inventoryLedger.has(itm.product_id) ? inventoryLedger.get(itm.product_id) : 0;
+            const newQty = prevStock + 1;
+            inventoryLedger.set(itm.product_id, newQty);
+            await supabaseRequest(`products?id=eq.${itm.product_id}`, 'PATCH', { stock_quantity: newQty, in_stock: true }).catch(() => {});
+            await supabaseRequest('inventory_movements', 'POST', [{
+              product_id: itm.product_id,
+              order_id: order_id,
+              order_number: order.order_number,
+              change_quantity: 1,
+              movement_type: new_status === 'cancelled' ? 'cancellation' : 'restock',
+              notes: `Restored stock from order ${order.order_number} (${new_status})`
+            }]).catch(() => {});
           }
         }
       }
@@ -756,9 +793,14 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ success: false, error: 'order_id required' }));
       }
 
+      const order = ordersStore.get(order_id);
+      if (order) {
+        order.production_checklist = checklist;
+      }
+
       await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', {
         production_checklist: checklist
-      });
+      }).catch(() => {});
 
       await supabaseRequest('admin_activity_logs', 'POST', [{
         admin_user_id: admin_user,
@@ -790,9 +832,29 @@ const server = http.createServer(async (req, res) => {
 
       let duplicateWarning = null;
       if (tracking_number) {
-        const dupRes = await supabaseRequest(`orders?tracking_number=eq.${encodeURIComponent(tracking_number)}&id=neq.${order_id}&select=order_number`);
-        if (dupRes.status === 200 && Array.isArray(dupRes.data) && dupRes.data.length > 0) {
-          duplicateWarning = `Warning: AWB "${tracking_number}" is already attached to order ${dupRes.data[0].order_number}.`;
+        const tTrim = tracking_number.trim().toUpperCase();
+        for (const [id, ord] of ordersStore.entries()) {
+          if (id !== order_id && ord.tracking_number && ord.tracking_number.trim().toUpperCase() === tTrim) {
+            duplicateWarning = `Warning: AWB "${tracking_number}" is already attached to order ${ord.order_number}.`;
+            break;
+          }
+        }
+        if (!duplicateWarning) {
+          const dupRes = await supabaseRequest(`orders?tracking_number=eq.${encodeURIComponent(tracking_number)}&id=neq.${order_id}&select=order_number`);
+          if (dupRes.status === 200 && Array.isArray(dupRes.data) && dupRes.data.length > 0) {
+            duplicateWarning = `Warning: AWB "${tracking_number}" is already attached to order ${dupRes.data[0].order_number}.`;
+          }
+        }
+      }
+
+      const order = ordersStore.get(order_id);
+      if (order) {
+        order.courier_name = courier_name.trim();
+        order.tracking_number = tracking_number.trim();
+        order.tracking_url = tracking_url.trim();
+        if (mark_shipped) {
+          order.status = 'shipped';
+          order.dispatched_at = new Date().toISOString();
         }
       }
 
@@ -806,7 +868,7 @@ const server = http.createServer(async (req, res) => {
         patchData.dispatched_at = new Date().toISOString();
       }
 
-      await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', patchData);
+      await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', patchData).catch(() => {});
 
       await supabaseRequest('admin_activity_logs', 'POST', [{
         admin_user_id: admin_user,
@@ -819,9 +881,11 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({
         success: true,
+        order_id,
         courier_name,
         tracking_number,
         tracking_url,
+        duplicate_warning: !!duplicateWarning,
         warning: duplicateWarning
       }));
     } catch (e) {
@@ -837,7 +901,14 @@ const server = http.createServer(async (req, res) => {
     try {
       const timeframe = parsedUrl.searchParams.get('timeframe') || 'all';
       const oRes = await supabaseRequest('orders?select=*');
-      const allOrders = (oRes.status === 200 && Array.isArray(oRes.data)) ? oRes.data : [];
+      const allOrders = [...((oRes.status === 200 && Array.isArray(oRes.data)) ? oRes.data : [])];
+
+      // Merge active orders from in-memory ledger
+      for (const ord of ordersStore.values()) {
+        if (!allOrders.some(o => o.id === ord.id || o.order_number === ord.order_number)) {
+          allOrders.push(ord);
+        }
+      }
 
       const now = new Date();
       const filtered = allOrders.filter(o => {
@@ -845,8 +916,8 @@ const server = http.createServer(async (req, res) => {
         const d = new Date(o.created_at);
         const diffMs = now - d;
         if (timeframe === 'today') return diffMs < 24 * 60 * 60 * 1000 && d.getDate() === now.getDate();
-        if (timeframe === '7days') return diffMs <= 7 * 24 * 60 * 60 * 1000;
-        if (timeframe === '30days') return diffMs <= 30 * 24 * 60 * 60 * 1000;
+        if (timeframe === '7d' || timeframe === '7days') return diffMs <= 7 * 24 * 60 * 60 * 1000;
+        if (timeframe === '30d' || timeframe === '30days') return diffMs <= 30 * 24 * 60 * 60 * 1000;
         if (timeframe === 'year') return d.getFullYear() === now.getFullYear();
         return true;
       });
@@ -932,76 +1003,6 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ success: false, error: e.message }));
-    }
-  }
-
-  // --------------------------------------------------------------------------
-  // API ROUTE: POST /api/track-order (Customer Order Tracking)
-  // --------------------------------------------------------------------------
-  if (req.method === 'POST' && pathname === '/api/track-order') {
-    try {
-      const body = await parseBody(req);
-      const rawQuery = (body && body.query) ? body.query.toString().trim() : '';
-
-      if (!rawQuery) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ found: false, message: 'Please provide an order number or phone number' }));
-      }
-
-      let order = null;
-      // 1. Check by Order Number (e.g. NAM-1234)
-      if (rawQuery.toUpperCase().startsWith('NAM-')) {
-        const oNum = rawQuery.toUpperCase();
-        const oRes = await supabaseRequest(`orders?order_number=eq.${encodeURIComponent(oNum)}&limit=1`);
-        if (oRes.status === 200 && Array.isArray(oRes.data) && oRes.data.length > 0) {
-          order = oRes.data[0];
-        }
-      } else {
-        // 2. Check by Phone Number (last 10 digits)
-        const digits = rawQuery.replace(/\D/g, '').slice(-10);
-        if (digits.length >= 10) {
-          const oRes = await supabaseRequest(`orders?phone=like.*${digits}&order=created_at.desc&limit=1`);
-          if (oRes.status === 200 && Array.isArray(oRes.data) && oRes.data.length > 0) {
-            order = oRes.data[0];
-          }
-        }
-      }
-
-      if (!order) {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({
-          found: false,
-          message: 'No order found matching your inquiry. Please check your order number or phone number.'
-        }));
-      }
-
-      // Fetch items for this order with safe projection
-      const iRes = await supabaseRequest(`order_items?order_id=eq.${order.id}&select=product_title,product_image,english_name,arabic_name,ink_style,font_style,is_ready_made,has_gift,price`);
-      const items = (iRes.status === 200 && Array.isArray(iRes.data)) ? iRes.data : [];
-
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({
-        found: true,
-        order: {
-          order_number: order.order_number,
-          customer_name: order.customer_name,
-          status: order.status,
-          payment_status: order.payment_status,
-          courier_name: order.courier_name || '',
-          tracking_number: order.tracking_number || '',
-          tracking_url: order.tracking_url || '',
-          total_amount: order.total_amount,
-          deposit_amount: order.deposit_amount,
-          cod_amount: order.cod_amount,
-          created_at: order.created_at,
-          dispatched_at: order.dispatched_at,
-          delivered_at: order.delivered_at
-        },
-        items
-      }));
-    } catch (e) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ found: false, error: e.message }));
     }
   }
 
