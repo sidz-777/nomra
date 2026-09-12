@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NAMORA Admin — Orders &amp; Dispatch Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cinzel:wght@600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+
+  <!-- SUPABASE SDK & CONFIG -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <script src="admin.js" defer></script>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-brand">
+      <a href="index.html" class="sidebar-logo">NAMORA</a>
+      <div class="sidebar-sub">Admin Order Hub</div>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li>
+        <a href="index.html" class="active">
+          <span>📦</span>
+          <span>Orders &amp; Shipments</span>
+        </a>
+      </li>
+      <li>
+        <a href="products.html">
+          <span>🖼️</span>
+          <span>Catalog &amp; Stock</span>
+        </a>
+      </li>
+      <li>
+        <a href="settings.html">
+          <span>⚙️</span>
+          <span>Store Pricing &amp; UPI</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="admin-user-info">
+        <div class="admin-avatar" id="adminAvatarInitial">A</div>
+        <div style="min-width: 0;">
+          <div style="font-size: 0.7rem; color: var(--ink-muted); text-transform: uppercase;">Signed in as</div>
+          <div class="admin-email-text" id="adminUserEmail">admin@namoraworld.com</div>
+        </div>
+      </div>
+      <button type="button" class="btn-logout" onclick="logoutAdmin()">
+        <span>🚪</span> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <main class="admin-main">
+    <header class="admin-header">
+      <div class="admin-header-title">Order Management &amp; Dispatch</div>
+      <div class="admin-header-actions">
+        <a href="../" target="_blank" class="btn-website-link">
+          <span>👁️ View Live Website</span>
+        </a>
+      </div>
+    </header>
+
+    <div class="admin-content">
+      <!-- DEMO MODE NOTICE (Shown if Supabase keys not set) -->
+      <div id="demoModeBanner" style="display: none; background: rgba(212, 175, 106, 0.12); border: 1px solid rgba(212, 175, 106, 0.35); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+        <div>
+          <strong style="color: var(--accent-gold);">⚡ Demo Preview Mode Active</strong>
+          <p style="font-size: 0.8rem; color: var(--ink-muted); margin-top: 0.2rem;">
+            Displaying sample frame orders. To connect real database sync, paste your Supabase URL &amp; Key in <code>supabase-config.js</code>.
+          </p>
+        </div>
+        <a href="settings.html" class="btn-website-link" style="white-space: nowrap;">Config Guide &rarr;</a>
+      </div>
+
+      <!-- METRICS CARDS -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <span class="metric-label">Total Orders</span>
+          <span class="metric-value" id="metricTotalOrders">0</span>
+          <span class="metric-sub">Lifetime orders</span>
+        </div>
+        <div class="metric-card" style="border-left: 3px solid var(--warning);">
+          <span class="metric-label">Awaiting ₹49 Deposit</span>
+          <span class="metric-value" style="color: var(--warning);" id="metricPendingAdvance">0</span>
+          <span class="metric-sub">Pending confirmation</span>
+        </div>
+        <div class="metric-card" style="border-left: 3px solid var(--purple);">
+          <span class="metric-label">In Calligraphy Studio</span>
+          <span class="metric-value" style="color: var(--purple);" id="metricInStudio">0</span>
+          <span class="metric-sub">Handcrafting in progress</span>
+        </div>
+        <div class="metric-card" style="border-left: 3px solid var(--accent-gold);">
+          <span class="metric-label">Dispatched Air</span>
+          <span class="metric-value" style="color: var(--accent-gold);" id="metricDispatched">0</span>
+          <span class="metric-sub">With courier partners</span>
+        </div>
+        <div class="metric-card" style="border-left: 3px solid var(--success);">
+          <span class="metric-label">Delivered</span>
+          <span class="metric-value" style="color: var(--success);" id="metricDelivered">0</span>
+          <span class="metric-sub">Safely reached customers</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-label">Total Revenue</span>
+          <span class="metric-value" style="color: var(--accent-gold);" id="metricTotalRevenue">₹0</span>
+          <span class="metric-sub">Gross merchandise value</span>
+        </div>
+      </div>
+
+      <!-- CONTROLS: FILTERS & SEARCH -->
+      <div class="controls-strip">
+        <div class="status-filter-pills">
+          <button type="button" class="filter-btn active" onclick="filterByStatus('all', this)">
+            All Orders <span class="filter-badge" id="countAll">0</span>
+          </button>
+          <button type="button" class="filter-btn" onclick="filterByStatus('pending_advance', this)">
+            ⏳ Awaiting Deposit <span class="filter-badge" id="countPending">0</span>
+          </button>
+          <button type="button" class="filter-btn" onclick="filterByStatus('in_studio', this)">
+            🎨 In Studio <span class="filter-badge" id="countInStudio">0</span>
+          </button>
+          <button type="button" class="filter-btn" onclick="filterByStatus('dispatched', this)">
+            🚚 Dispatched <span class="filter-badge" id="countDispatched">0</span>
+          </button>
+          <button type="button" class="filter-btn" onclick="filterByStatus('delivered', this)">
+            ✅ Delivered <span class="filter-badge" id="countDelivered">0</span>
+          </button>
+        </div>
+
+        <div class="search-box-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" placeholder="Search by name, phone, order ID, or PIN..." oninput="handleSearch(this.value)" />
+        </div>
+      </div>
+
+      <!-- ORDERS TABLE -->
+      <div class="orders-table-wrapper">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th>Order Ref</th>
+              <th>Customer &amp; Delivery Address</th>
+              <th>Frames &amp; Calligraphy</th>
+              <th>Status</th>
+              <th style="text-align: right;">Amount &amp; COD</th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody">
+            <!-- Dynamically populated by admin.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- ORDER DETAIL & PACKING SLIP MODAL -->
+  <div class="admin-modal-overlay" id="orderDetailModal" onclick="if(event.target===this)closeModal()">
+    <div class="admin-modal-card">
+      <button type="button" class="modal-close-btn" onclick="closeModal()">&times;</button>
+      <div id="modalContentArea">
+        <!-- Injected by admin.js -->
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

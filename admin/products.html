@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NAMORA Admin — Catalog &amp; Stock Manager</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <style>
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 1.25rem;
+    }
+    .catalog-item-card {
+      background: var(--card-admin);
+      border: 1px solid var(--line-admin);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: var(--transition);
+    }
+    .catalog-item-card:hover {
+      border-color: var(--accent-gold);
+    }
+    .catalog-thumb-box {
+      width: 100%;
+      aspect-ratio: 1 / 1.2;
+      background: #000;
+      position: relative;
+      overflow: hidden;
+    }
+    .catalog-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .stock-badge-active {
+      position: absolute;
+      top: 0.75rem;
+      left: 0.75rem;
+      background: var(--success);
+      color: #141210;
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-pill);
+      text-transform: uppercase;
+    }
+    .stock-badge-out {
+      position: absolute;
+      top: 0.75rem;
+      left: 0.75rem;
+      background: var(--danger);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 800;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-pill);
+      text-transform: uppercase;
+    }
+    .catalog-body {
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .catalog-cat {
+      font-size: 0.72rem;
+      color: var(--accent-gold);
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 0.25rem;
+    }
+    .catalog-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--ink-admin);
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+    }
+    .catalog-price-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-top: auto;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--line-admin);
+    }
+    .catalog-price {
+      font-family: var(--font-luxury);
+      font-weight: 800;
+      color: var(--accent-gold);
+      font-size: 1.1rem;
+    }
+    .stock-toggle-btn {
+      background: var(--bg-admin);
+      border: 1px solid var(--line-admin);
+      color: var(--ink-admin);
+      padding: 0.35rem 0.7rem;
+      border-radius: var(--radius-pill);
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    .stock-toggle-btn:hover {
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-brand">
+      <a href="index.html" class="sidebar-logo">NAMORA</a>
+      <div class="sidebar-sub">Admin Order Hub</div>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li>
+        <a href="index.html">
+          <span>📦</span>
+          <span>Orders &amp; Shipments</span>
+        </a>
+      </li>
+      <li>
+        <a href="products.html" class="active">
+          <span>🖼️</span>
+          <span>Catalog &amp; Stock</span>
+        </a>
+      </li>
+      <li>
+        <a href="settings.html">
+          <span>⚙️</span>
+          <span>Store Pricing &amp; UPI</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <button type="button" class="btn-logout" onclick="logoutAdmin()">
+        <span>🚪</span> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="admin-main">
+    <header class="admin-header">
+      <div class="admin-header-title">Frame Catalog &amp; Inventory</div>
+      <div class="admin-header-actions">
+        <a href="../#ready-to-ship" target="_blank" class="btn-website-link">
+          <span>⚡ View Ready-to-Ship Section</span>
+        </a>
+      </div>
+    </header>
+
+    <div class="admin-content">
+      <div class="controls-strip">
+        <div class="status-filter-pills">
+          <button type="button" class="filter-btn active" onclick="filterCatalog('all', this)">
+            All Products (<span id="countCatAll">37</span>)
+          </button>
+          <button type="button" class="filter-btn" onclick="filterCatalog('cars', this)">
+            🏎️ Supercars (<span id="countCatCars">10</span>)
+          </button>
+          <button type="button" class="filter-btn" onclick="filterCatalog('sports', this)">
+            ⚽ Sports (<span id="countCatSports">14</span>)
+          </button>
+          <button type="button" class="filter-btn" onclick="filterCatalog('names', this)">
+            ✒️ Ready Names (<span id="countCatNames">11</span>)
+          </button>
+          <button type="button" class="filter-btn" onclick="filterCatalog('pop', this)">
+            🎬 Pop Culture (<span id="countCatPop">2</span>)
+          </button>
+        </div>
+      </div>
+
+      <div class="catalog-grid" id="catalogGrid">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </main>
+
+  <script src="admin.js"></script>
+  <script>
+    let catalogItems = [];
+
+    // Fallback catalog from readyStockProducts
+    const DEFAULT_CATALOG = [
+      { id: 'car-1', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS', image: 'car1.jpg', price: 499, in_stock: true },
+      { id: 'car-2', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M5 F90 Black Edition', image: 'car2.jpg', price: 499, in_stock: true },
+      { id: 'car-3', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Silver', image: 'car3.jpg', price: 499, in_stock: true },
+      { id: 'car-4', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M8 Competition Coupé', image: 'car4.jpg', price: 499, in_stock: true },
+      { id: 'car-5', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Rear Wing', image: 'car5.jpg', price: 499, in_stock: true },
+      { id: 'car-6', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche GT3 RS White Frame', image: 'car6.jpg', price: 499, in_stock: true },
+      { id: 'car-7', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS Carbon Gray', image: 'car7.jpg', price: 499, in_stock: true },
+      { id: 'car-8', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS 3D Diecast', image: 'car8.jpg', price: 499, in_stock: true },
+      { id: 'car-9', category: 'cars', categoryLabel: 'Supercars', title: 'Ford Mustang 1964 Legendary', image: 'car9.jpg', price: 499, in_stock: true },
+      { id: 'car-11', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 RSR Triptych Wall Set', image: 'car11.jpg', price: 499, in_stock: true },
+      { id: 'sport-14', category: 'sports', categoryLabel: 'Sports Legends', title: 'Cristiano Ronaldo — CR7 1985', image: 'sport14.jpg', price: 499, in_stock: true },
+      { id: 'sport-3', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi — World Cup Triumph', image: 'sport3.jpg', price: 499, in_stock: true },
+      { id: 'sport-4', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 Argentina Jersey Frame', image: 'sport4.jpg', price: 499, in_stock: true },
+      { id: 'sport-5', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi #10 Accolades', image: 'sport5.jpg', price: 499, in_stock: true },
+      { id: 'sport-10', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 3D Layered Jersey', image: 'sport10.jpg', price: 499, in_stock: true },
+      { id: 'sport-1', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Vintage Crest', image: 'sport1.jpg', price: 499, in_stock: true },
+      { id: 'sport-2', category: 'sports', categoryLabel: 'Sports Legends', title: 'Real Madrid — Hala Madrid', image: 'sport2.jpg', price: 499, in_stock: true },
+      { id: 'sport-13', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jude Bellingham — England & Madrid', image: 'sport13.jpg', price: 499, in_stock: true },
+      { id: 'sport-9', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr #10 Brazil 3D Frame', image: 'sport9.jpg', price: 499, in_stock: true },
+      { id: 'sport-12', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr 1992 Brazil Signature', image: 'sport12.jpg', price: 499, in_stock: true },
+      { id: 'sport-15', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr — Santos FC Heritage', image: 'sport15.jpg', price: 499, in_stock: true },
+      { id: 'sport-6', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Leather Grain', image: 'sport6.jpg', price: 499, in_stock: true },
+      { id: 'sport-11', category: 'sports', categoryLabel: 'Sports Legends', title: 'Força Barça — Més Que Un Club', image: 'sport11.jpg', price: 499, in_stock: true },
+      { id: 'sport-8', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jamal Musiala #10 Germany DFB', image: 'sport8.jpg', price: 499, in_stock: true },
+      { id: 'pop-1', category: 'pop', categoryLabel: 'Pop Culture', title: 'Spider-Man: Into the Spider-Verse', image: 'sport16.jpg', price: 499, in_stock: true },
+      { id: 'pop-2', category: 'pop', categoryLabel: 'Motorsport', title: 'Lewis Hamilton #44 Mercedes F1', image: 'sport18.jpg', price: 499, in_stock: true },
+      { id: 'name-4', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Carpet Mosaic', image: 'name4.jpg', price: 499, in_stock: true },
+      { id: 'name-7', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Heritage Rug', image: 'name7.jpg', price: 499, in_stock: true },
+      { id: 'name-9', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Blush Floral', image: 'name9.png', price: 499, in_stock: true },
+      { id: 'name-10', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Royal Purple', image: 'name10.jpg', price: 499, in_stock: true },
+      { id: 'name-3', category: 'names', categoryLabel: 'Ready Names', title: 'Muhammad (محمد) — Kilim Rug', image: 'name3.jpg', price: 499, in_stock: true },
+      { id: 'name-8', category: 'names', categoryLabel: 'Ready Names', title: 'Ahmad (أحمد) — Handheld Photo', image: 'name8.jpg', price: 499, in_stock: true },
+      { id: 'name-6', category: 'names', categoryLabel: 'Ready Names', title: 'Maryam (مريم) — Jasmine Flower', image: 'name6.jpg', price: 499, in_stock: true },
+      { id: 'name-5', category: 'names', categoryLabel: 'Ready Names', title: 'Batool (بتول) — Crimson Tapestry', image: 'name5.jpg', price: 499, in_stock: true },
+      { id: 'name-2', category: 'names', categoryLabel: 'Ready Names', title: 'Rimsha (رمشا) — Floral "R"', image: 'name2.jpg', price: 499, in_stock: true },
+      { id: 'name-1', category: 'names', categoryLabel: 'Ready Names', title: 'Tayyiba (طيبة) — Persian Blue', image: 'name1.jpg', price: 499, in_stock: true },
+      { id: 'name-11', category: 'names', categoryLabel: 'Ready Names', title: 'Sabr (صبر - Patience)', image: 'name11.jpg', price: 499, in_stock: true }
+    ];
+
+    let currentCat = 'all';
+
+    async function loadCatalog() {
+      catalogItems = [...DEFAULT_CATALOG];
+      renderCatalogGrid();
+    }
+
+    function filterCatalog(cat, btn) {
+      currentCat = cat;
+      if (btn) {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+      renderCatalogGrid();
+    }
+
+    function renderCatalogGrid() {
+      const grid = document.getElementById('catalogGrid');
+      if (!grid) return;
+
+      const filtered = currentCat === 'all'
+        ? catalogItems
+        : catalogItems.filter(p => p.category === currentCat);
+
+      grid.innerHTML = filtered.map(p => `
+        <div class="catalog-item-card">
+          <div class="catalog-thumb-box">
+            <span class="${p.in_stock ? 'stock-badge-active' : 'stock-badge-out'}">
+              ${p.in_stock ? 'In Stock' : 'Out of Stock'}
+            </span>
+            <img src="../${p.image}" class="catalog-img" alt="${p.title}" onerror="this.src='../design1.jpg'" />
+          </div>
+          <div class="catalog-body">
+            <div class="catalog-cat">${p.categoryLabel}</div>
+            <div class="catalog-title">${p.title}</div>
+            <div class="catalog-price-row">
+              <span class="catalog-price">₹${p.price}</span>
+              <button type="button" class="stock-toggle-btn" onclick="toggleStockStatus('${p.id}')">
+                ${p.in_stock ? 'Mark Out of Stock' : 'Mark In Stock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function toggleStockStatus(id) {
+      const item = catalogItems.find(p => p.id === id);
+      if (item) {
+        item.in_stock = !item.in_stock;
+        renderCatalogGrid();
+        showToast(`Updated stock status for "${item.title}"!`);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAdminAuth().then(auth => {
+        if (auth) loadCatalog();
+      });
+    });
+  </script>
+</body>
+</html>

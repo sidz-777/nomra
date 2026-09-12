@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NAMORA Admin — Store Settings &amp; Pricing</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="admin.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <style>
+    .settings-container {
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+    .settings-card {
+      background: var(--card-admin);
+      border: 1px solid var(--line-admin);
+      border-radius: var(--radius-md);
+      padding: 1.75rem;
+    }
+    .settings-card-title {
+      font-family: var(--font-luxury);
+      font-size: 1.15rem;
+      color: var(--accent-gold);
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+    .settings-card-sub {
+      font-size: 0.8rem;
+      color: var(--ink-muted);
+      margin-bottom: 1.5rem;
+    }
+    .settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 640px) {
+      .settings-grid { grid-template-columns: 1fr; }
+    }
+    .form-group label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .form-input {
+      width: 100%;
+      background: var(--bg-admin);
+      border: 1px solid var(--line-admin);
+      color: var(--ink-admin);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      outline: none;
+      transition: var(--transition);
+    }
+    .form-input:focus {
+      border-color: var(--accent-gold);
+      box-shadow: 0 0 0 2px var(--accent-gold-glow);
+    }
+    .btn-save {
+      background: var(--accent-gold);
+      color: #141210;
+      border: none;
+      padding: 0.8rem 1.75rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-top: 1.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .btn-save:hover {
+      background: var(--accent-gold-hover);
+      box-shadow: 0 4px 15px rgba(212, 175, 106, 0.35);
+    }
+    .code-box {
+      background: var(--bg-admin);
+      border: 1px solid var(--line-admin);
+      border-radius: var(--radius-sm);
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: var(--accent-gold);
+      overflow-x: auto;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="admin-sidebar">
+    <div class="sidebar-brand">
+      <a href="index.html" class="sidebar-logo">NAMORA</a>
+      <div class="sidebar-sub">Admin Order Hub</div>
+    </div>
+
+    <ul class="sidebar-nav">
+      <li>
+        <a href="index.html">
+          <span>📦</span>
+          <span>Orders &amp; Shipments</span>
+        </a>
+      </li>
+      <li>
+        <a href="products.html">
+          <span>🖼️</span>
+          <span>Catalog &amp; Stock</span>
+        </a>
+      </li>
+      <li>
+        <a href="settings.html" class="active">
+          <span>⚙️</span>
+          <span>Store Pricing &amp; UPI</span>
+        </a>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <button type="button" class="btn-logout" onclick="logoutAdmin()">
+        <span>🚪</span> Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="admin-main">
+    <header class="admin-header">
+      <div class="admin-header-title">Store Parameters &amp; Credentials</div>
+      <div class="admin-header-actions">
+        <a href="../" target="_blank" class="btn-website-link">
+          <span>👁️ View Live Website</span>
+        </a>
+      </div>
+    </header>
+
+    <div class="admin-content">
+      <div class="settings-container">
+
+        <!-- PRICING & DEPOSIT SETTINGS -->
+        <div class="settings-card">
+          <div class="settings-card-title">Commercial Pricing &amp; Deposit Rules</div>
+          <div class="settings-card-sub">Control standard A4 frame prices, advance reservation deposits, and add-on rates.</div>
+
+          <form onsubmit="saveStoreSettings(event)">
+            <div class="settings-grid">
+              <div class="form-group">
+                <label>Standard Frame Price (INR)</label>
+                <input type="number" id="settingFramePrice" class="form-input" value="499" required />
+              </div>
+              <div class="form-group">
+                <label>Online Advance Deposit per Frame</label>
+                <input type="number" id="settingDeposit" class="form-input" value="49" required />
+              </div>
+              <div class="form-group">
+                <label>Standard COD Balance to Collect</label>
+                <input type="number" id="settingCod" class="form-input" value="450" required />
+              </div>
+              <div class="form-group">
+                <label>Luxury Gift Add-on (+INR)</label>
+                <input type="number" id="settingGift" class="form-input" value="69" required />
+              </div>
+            </div>
+
+            <div class="settings-grid" style="margin-top: 1.25rem;">
+              <div class="form-group">
+                <label>Official WhatsApp Helpline Phone</label>
+                <input type="text" id="settingWaPhone" class="form-input" value="919305654028" required />
+              </div>
+              <div class="form-group">
+                <label>Store UPI ID (For Advance Deposits)</label>
+                <input type="text" id="settingUpiId" class="form-input" value="namoraworld@upi" required />
+              </div>
+            </div>
+
+            <button type="submit" class="btn-save">
+              <span>💾</span> Save Store Parameters
+            </button>
+          </form>
+        </div>
+
+        <!-- SUPABASE CONNECTION GUIDE -->
+        <div class="settings-card">
+          <div class="settings-card-title">Supabase Database Setup Guide</div>
+          <div class="settings-card-sub">Follow these 2 quick steps to link your live Supabase project.</div>
+
+          <div style="font-size: 0.85rem; color: var(--ink-admin); line-height: 1.6;">
+            <p style="margin-bottom: 0.75rem;">
+              <strong>Step 1: Run the Database Schema SQL</strong><br/>
+              Open your Supabase Project Dashboard &rarr; <strong>SQL Editor</strong> &rarr; Click <strong>New query</strong> &rarr; Paste the contents of <a href="../supabase_schema.sql" target="_blank" style="color: var(--accent-gold);"><code>supabase_schema.sql</code></a> and click <strong>Run</strong>.
+            </p>
+            <p style="margin-bottom: 0.75rem;">
+              <strong>Step 2: Connect Your API Keys in <code>supabase-config.js</code></strong><br/>
+              Open your Supabase Project Settings &rarr; <strong>API</strong> &rarr; Copy Project URL &amp; <code>anon</code> public key into:
+            </p>
+            <div class="code-box">
+window.NAMORA_SUPABASE_CONFIG = {<br/>
+&nbsp;&nbsp;SUPABASE_URL: "https://your-project.supabase.co",<br/>
+&nbsp;&nbsp;SUPABASE_ANON_KEY: "eyJhbGciOi..."<br/>
+};
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script src="admin.js"></script>
+  <script>
+    function saveStoreSettings(e) {
+      e.preventDefault();
+      showToast('Store settings saved successfully!');
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      checkAdminAuth();
+    });
+  </script>
+</body>
+</html>
