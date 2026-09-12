@@ -253,6 +253,25 @@ window.NAMORA_SUPABASE_CONFIG = {<br/>
       const waPhone = document.getElementById('settingWaPhone').value.trim();
       const upiId = document.getElementById('settingUpiId').value.trim();
 
+      const payload = { framePrice, deposit, cod, gift, waPhone, upiId };
+
+      try {
+        // 1. Send to Backend API
+        const res = await fetch('/api/admin/update-settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          showToast('✅ Store parameters successfully saved & synchronized!');
+          return;
+        }
+      } catch (apiErr) {
+        console.warn('API update-settings note, attempting Supabase fallback:', apiErr.message);
+      }
+
+      // 2. Direct Supabase fallback
       const client = (typeof getSupabase === 'function' ? getSupabase() : null);
       if (client) {
         try {
@@ -266,18 +285,30 @@ window.NAMORA_SUPABASE_CONFIG = {<br/>
           ];
 
           for (const u of updates) {
-            await client.from('settings').upsert(u, { onConflict: 'key' });
+            // Try RPC update_store_setting first
+            const { error: rpcErr } = await client.rpc('update_store_setting', {
+              p_key: u.key,
+              p_value: u.value
+            });
+            if (rpcErr) {
+              await client.from('settings').upsert(u, { onConflict: 'key' });
+            }
           }
 
           if (typeof auditLogAdminAction === 'function') {
             auditLogAdminAction('store_settings_updated', 'settings', 'store_parameters', { framePrice, deposit, cod, gift });
           }
+
+          showToast('✅ Store settings saved & synced to Supabase database!');
+          return;
         } catch (err) {
-          console.warn('Error saving store settings:', err);
+          console.warn('Error saving store settings in Supabase:', err);
+          showToast('❌ Unable to write settings to Supabase database: ' + err.message);
+          return;
         }
       }
 
-      showToast('Store settings saved & synced to Supabase database!');
+      showToast('⚠️ Backend unavailable. Please check Supabase credentials.');
     }
 
     document.addEventListener('DOMContentLoaded', () => {

@@ -6662,7 +6662,11 @@
           ? readyStockProducts
           : readyStockProducts.filter(p => p.category === filterCategory);
 
-        grid.innerHTML = filtered.map(p => `
+        grid.innerHTML = filtered.map(p => {
+          const itemPrice = Number(p.price) || 499;
+          const itemDeposit = Number(p.deposit_price != null ? p.deposit_price : 49);
+          const itemCod = itemPrice - itemDeposit;
+          return `
           <div class="ready-card" data-category="${p.category}">
             <div class="ready-frame-wrapper" onclick="openReadyLightbox('${p.image}', '${escapeHtml(p.title)}')">
               <span class="ready-card-badge ${p.tagClass}">${escapeHtml(p.tag)}</span>
@@ -6678,8 +6682,8 @@
               <h3 class="ready-card-title">${escapeHtml(p.title)}</h3>
               <div class="ready-card-sub">${escapeHtml(p.subtitle)}</div>
               <div class="ready-card-pricing">
-                <span class="ready-price-main">₹499</span>
-                <span class="ready-price-deposit">⚡ ₹49 advance · ₹450 COD</span>
+                <span class="ready-price-main">₹${itemPrice}</span>
+                <span class="ready-price-deposit">⚡ ₹${itemDeposit} advance · ₹${itemCod} COD</span>
               </div>
               <div class="ready-card-actions">
                 <button type="button" class="ready-btn-cart" onclick="addReadyMadeToCart('${p.id}')">
@@ -6691,7 +6695,8 @@
               </div>
             </div>
           </div>
-        `).join('');
+        `;
+        }).join('');
       }
 
       function filterReadyStock(category, btn) {
@@ -6708,6 +6713,7 @@
         if (!product) return;
 
         const isGift = document.getElementById('giftToggle') && document.getElementById('giftToggle').checked;
+        const giftCost = isGift ? 69 : 0;
         let giftData = null;
         if (isGift) {
           const to = (document.getElementById('giftTo') && document.getElementById('giftTo').value.trim()) || '';
@@ -6718,6 +6724,11 @@
           }
         }
 
+        const basePrice = Number(product.price) || 499;
+        const baseDeposit = Number(product.deposit_price != null ? product.deposit_price : 49);
+        const itemPrice = basePrice + giftCost;
+        const itemCod = itemPrice - baseDeposit;
+
         const newItem = {
           id: 'ready_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           isReadyMade: true,
@@ -6726,9 +6737,9 @@
           productImage: product.image,
           categoryLabel: product.categoryLabel,
           size: 'A4 Size Only',
-          price: 499,
-          deposit: 49,
-          cod: 450,
+          price: itemPrice,
+          deposit: baseDeposit,
+          cod: itemCod,
           gift: giftData
         };
 
@@ -6741,7 +6752,10 @@
       function orderReadyStockWhatsApp(productId) {
         const product = readyStockProducts.find(p => p.id === productId);
         if (!product) return;
-        const msg = `Hi NAMORA! I would like to order the Ready-to-Ship Frame:\n\n🖼️ Edition: *${product.title}*\n🏷️ Category: ${product.categoryLabel}\n📐 Size: A4 Handmade Frame\n💰 Price: ₹499 (₹49 advance deposit · ₹450 COD)\n⚡ Status: In Stock (Dispatches within 24 Hours)\n\nPlease share payment link/UPI for the ₹49 deposit to confirm express dispatch!`;
+        const pPrice = Number(product.price) || 499;
+        const pDeposit = Number(product.deposit_price != null ? product.deposit_price : 49);
+        const pCod = pPrice - pDeposit;
+        const msg = `Hi NAMORA! I would like to order the Ready-to-Ship Frame:\n\n🖼️ Edition: *${product.title}*\n🏷️ Category: ${product.categoryLabel}\n📐 Size: A4 Handmade Frame\n💰 Price: ₹${pPrice} (₹${pDeposit} advance deposit · ₹${pCod} COD)\n⚡ Status: In Stock (Dispatches within 24 Hours)\n\nPlease share payment link/UPI for the ₹${pDeposit} deposit to confirm express dispatch!`;
         const waNumber = '919305654028';
         const url = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
         window.open(url, '_blank');
@@ -7051,6 +7065,11 @@
             giftData = { isGift: true, to, from, message: msg, cost: 69 };
           }
 
+          const basePrice = (activeProduct && activeProduct.price) ? Number(activeProduct.price) : 499;
+          const baseDeposit = (activeProduct && activeProduct.deposit_price != null) ? Number(activeProduct.deposit_price) : 49;
+          const itemPrice = basePrice + giftCost;
+          const itemCod = itemPrice - baseDeposit;
+
           const newItem = {
             id: 'frame_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             productTitle: activeProduct.title,
@@ -7069,9 +7088,9 @@
             textSize: textSizeChoice,
             textSizeLabel: sizeLabels[textSizeChoice],
             size: 'A4 Size Only',
-            price: 499 + giftCost,
-            deposit: 49,
-            cod: 450 + giftCost,
+            price: itemPrice,
+            deposit: baseDeposit,
+            cod: itemCod,
             gift: giftData
           };
           cartItems.push(newItem);
@@ -7207,9 +7226,9 @@
         if (checkoutBottom) checkoutBottom.style.display = '';
 
         const totalFrames = cartItems.length;
-        const totalPrice = totalFrames * 499;
-        const totalDeposit = totalFrames * 49;
-        const totalCod = totalFrames * 450;
+        const totalPrice = cartItems.reduce((acc, item) => acc + (Number(item.price) || 499), 0);
+        const totalDeposit = cartItems.reduce((acc, item) => acc + (Number(item.deposit) || 49), 0);
+        const totalCod = totalPrice - totalDeposit;
 
         const itemsHtml = cartItems.map((item) => {
           const isReady = item.isReadyMade;
@@ -7346,29 +7365,34 @@
           giftData = { isGift: true, to, from, message: msg, cost: 69 };
         }
 
+        const basePrice = (activeProduct && activeProduct.price) ? Number(activeProduct.price) : 499;
+        const baseDeposit = (activeProduct && activeProduct.deposit_price != null) ? Number(activeProduct.deposit_price) : 49;
+        const itemPrice = basePrice + giftCost;
+        const itemCod = itemPrice - baseDeposit;
+
         const newItem = {
-          id: 'frame_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-          productTitle: activeProduct.title,
-          productId: activeProduct.id,
-          productImage: activeProduct.image,
-          language: currentLanguage === 'en' ? 'English' : 'Arabic',
-          englishName: enName,
-          arabicName: currentLanguage === 'ar'
-            ? (arName || suggestArabicSpelling(enName).text)
-            : suggestArabicSpelling(enName).text,
-          ink: inkChoice,
-          inkLabel: inkLabels[inkChoice],
-          inkColor: getInkColor(),
-          font: fontChoice,
-          fontLabel: fontLabels[fontChoice],
-          textSize: textSizeChoice,
-          textSizeLabel: sizeLabels[textSizeChoice],
-          size: 'A4 Size Only',
-          price: 499 + giftCost,
-          deposit: 49,
-          cod: 450 + giftCost,
-          gift: giftData
-        };
+            id: 'frame_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            productTitle: activeProduct.title,
+            productId: activeProduct.id,
+            productImage: activeProduct.image,
+            language: currentLanguage === 'en' ? 'English' : 'Arabic',
+            englishName: enName,
+            arabicName: currentLanguage === 'ar'
+              ? (arName || suggestArabicSpelling(enName).text)
+              : suggestArabicSpelling(enName).text,
+            ink: inkChoice,
+            inkLabel: inkLabels[inkChoice],
+            inkColor: getInkColor(),
+            font: fontChoice,
+            fontLabel: fontLabels[fontChoice],
+            textSize: textSizeChoice,
+            textSizeLabel: sizeLabels[textSizeChoice],
+            size: 'A4 Size Only',
+            price: itemPrice,
+            deposit: baseDeposit,
+            cod: itemCod,
+            gift: giftData
+          };
 
         cartItems.push(newItem);
         renderCart();
@@ -8114,14 +8138,67 @@
       }
       window.addEventListener('scroll', handleScrollStickyBar, { passive: true });
 
+      /* ===================== LIVE CATALOGUE SYNC ===================== */
+      async function fetchLiveCatalog() {
+        try {
+          let products = [];
+          try {
+            const res = await fetch('/api/products');
+            if (res.ok) {
+              const data = await res.json();
+              if (data.success && Array.isArray(data.products) && data.products.length > 0) {
+                products = data.products;
+              }
+            }
+          } catch (e) {
+            // fallback
+          }
+
+          if (!products.length && window.NamoraBackend && window.NamoraBackend.getClient) {
+            const client = window.NamoraBackend.getClient();
+            if (client) {
+              const { data } = await client.from('products').select('*');
+              if (data && data.length) products = data;
+            }
+          }
+
+          if (products && products.length) {
+            products.forEach(p => {
+              const matchReady = readyStockProducts.find(r => r.id === p.id);
+              if (matchReady) {
+                matchReady.price = parseFloat(p.price) || 499;
+                matchReady.deposit_price = parseFloat(p.deposit_price) || 49;
+                matchReady.cod_price = parseFloat(p.cod_price) || 450;
+                matchReady.in_stock = p.in_stock !== false;
+                matchReady.stock_quantity = p.stock_quantity !== undefined ? p.stock_quantity : 5;
+              }
+
+              const matchReal = realProducts.find(r => r.id === p.id);
+              if (matchReal) {
+                matchReal.price = parseFloat(p.price) || 499;
+                matchReal.deposit_price = parseFloat(p.deposit_price) || 49;
+                matchReal.cod_price = parseFloat(p.cod_price) || 450;
+              }
+            });
+
+            renderReadyStockGrid(currentReadyFilter || 'all');
+            updateStickyBar();
+          }
+        } catch (err) {
+          console.warn('Live catalog fetch note:', err);
+        }
+      }
+
       /* ===================== INIT ===================== */
       renderGallery();
+      renderReadyStockGrid('all');
       updateDisplays();
       updateDispatchDates();
       updateStickyBar();
       renderCart();
       onCustomInkChange();
       initGalleryLightbox();
+      fetchLiveCatalog();
     </script>
     
     <!-- TRACK ORDER MODAL -->

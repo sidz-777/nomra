@@ -1,0 +1,16 @@
+{
+  "sport-10": {
+    "price": 499,
+    "deposit_price": 49,
+    "cod_price": 450,
+    "updated_at": "2026-09-12T18:42:39.780Z",
+    "dbPersisted": true
+  },
+  "car-1": {
+    "price": 499,
+    "deposit_price": 49,
+    "cod_price": 450,
+    "updated_at": "2026-09-12T18:43:50.996Z",
+    "dbPersisted": true
+  }
+}

@@ -239,6 +239,35 @@
     let currentCat = 'all';
 
     async function loadCatalog() {
+      // 1. Try Backend API first (includes live DB prices + active overrides)
+      try {
+        const res = await fetch('/api/products');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.products) && json.products.length > 0) {
+            catalogItems = json.products.map(p => ({
+              id: p.id,
+              category: p.category,
+              categoryLabel: p.category_label || p.category,
+              title: p.title,
+              image: p.image_url,
+              price: parseFloat(p.price) || 499,
+              deposit_price: parseFloat(p.deposit_price) || 49,
+              cod_price: parseFloat(p.cod_price) || 450,
+              in_stock: p.in_stock !== false,
+              stock_quantity: (p.stock_quantity !== undefined ? p.stock_quantity : (p.in_stock !== false ? 5 : 0)),
+              is_stock_managed: p.is_stock_managed
+            }));
+            updateCategoryCounts();
+            renderCatalogGrid();
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Backend API /api/products note:', apiErr.message);
+      }
+
+      // 2. Fallback to Supabase direct query
       const client = (typeof getSupabase === 'function' ? getSupabase() : null);
       if (client) {
         try {
@@ -254,9 +283,11 @@
               categoryLabel: p.category_label || p.category,
               title: p.title,
               image: p.image_url,
-              price: p.price,
-              in_stock: p.in_stock,
-              stock_quantity: (p.stock_quantity !== undefined ? p.stock_quantity : (p.in_stock ? 5 : 0)),
+              price: parseFloat(p.price) || 499,
+              deposit_price: parseFloat(p.deposit_price) || 49,
+              cod_price: parseFloat(p.cod_price) || 450,
+              in_stock: p.in_stock !== false,
+              stock_quantity: (p.stock_quantity !== undefined ? p.stock_quantity : (p.in_stock !== false ? 5 : 0)),
               is_stock_managed: p.is_stock_managed
             }));
             updateCategoryCounts();
@@ -313,14 +344,21 @@
             <div class="catalog-cat">${p.categoryLabel}</div>
             <div class="catalog-title">${p.title}</div>
             <div class="catalog-price-row">
-              <div>
-                <div class="catalog-price">₹${p.price}</div>
-                <div style="font-size: 0.72rem; color: var(--ink-muted); margin-top: 2px;">
+              <div style="flex: 1; padding-right: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.35rem; margin-bottom: 4px;">
+                  <span style="font-size: 0.85rem; font-weight: 700; color: var(--accent-gold);">₹</span>
+                  <input type="number" id="price-input-${p.id}" value="${p.price}" min="1" step="1"
+                         style="width: 78px; background: var(--bg-admin); border: 1px solid var(--line-admin); color: var(--accent-gold); font-family: var(--font-luxury); font-weight: 800; font-size: 0.95rem; padding: 0.2rem 0.4rem; border-radius: var(--radius-sm); outline: none;" />
+                  <button type="button" class="stock-toggle-btn" style="border-color: var(--accent-gold); color: var(--accent-gold); padding: 0.25rem 0.55rem;" onclick="saveProductPrice('${p.id}')" id="btn-save-price-${p.id}">
+                    Save
+                  </button>
+                </div>
+                <div style="font-size: 0.72rem; color: var(--ink-muted);">
                   Stock: <strong style="color: ${qty > 0 ? 'var(--success)' : 'var(--danger)'};">${qty} units</strong>
                 </div>
               </div>
               <button type="button" class="stock-toggle-btn" onclick="toggleStockStatus('${p.id}')">
-                ${p.in_stock && qty > 0 ? 'Mark Out of Stock' : 'Mark In Stock'}
+                ${p.in_stock && qty > 0 ? 'Mark Out' : 'Mark In'}
               </button>
             </div>
             <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; border-top: 1px dashed var(--line-admin); padding-top: 0.5rem;">
@@ -335,6 +373,104 @@
         </div>
       `;
       }).join('');
+    }
+
+    async function saveProductPrice(id) {
+      const item = catalogItems.find(p => p.id === id);
+      if (!item) return;
+
+      const inputEl = document.getElementById(`price-input-${id}`);
+      const btnEl = document.getElementById(`btn-save-price-${id}`);
+      if (!inputEl) return;
+
+      const rawVal = inputEl.value.trim();
+      const newPrice = parseFloat(rawVal);
+
+      if (isNaN(newPrice) || newPrice <= 0 || !isFinite(newPrice)) {
+        alert('Please enter a valid positive price greater than 0.');
+        inputEl.value = item.price;
+        return;
+      }
+
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.textContent = 'Saving...';
+      }
+
+      try {
+        // 1. Send update to Backend API
+        const res = await fetch('/api/admin/update-product-price', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ product_id: id, price: newPrice })
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          item.price = newPrice;
+          item.cod_price = newPrice - (item.deposit_price || 49);
+          if (data.db_persisted) {
+            showToast(`✅ Price for "${item.title}" saved & verified in Supabase: ₹${newPrice}`);
+          } else {
+            showToast(`⚠️ Price updated on server: ₹${newPrice}. (Run SQL migration in Supabase for permanent DB sync)`);
+          }
+        } else {
+          throw new Error((data && data.error) || 'Failed to update price on server');
+        }
+      } catch (err) {
+        console.warn('API saveProductPrice note, trying Supabase direct update:', err.message);
+
+        // Fallback: Direct Supabase client write
+        const client = (typeof getSupabase === 'function' ? getSupabase() : null);
+        let fallbackSucceeded = false;
+
+        if (client) {
+          try {
+            // Try RPC first
+            const { data: rpcData, error: rpcErr } = await client.rpc('update_product_price', {
+              p_product_id: id,
+              p_new_price: newPrice
+            });
+
+            if (!rpcErr && rpcData && rpcData.success) {
+              fallbackSucceeded = true;
+            } else {
+              // Try direct table update
+              const { data: updateData, error: updateErr } = await client
+                .from('products')
+                .update({ price: newPrice, cod_price: newPrice - (item.deposit_price || 49), updated_at: new Date().toISOString() })
+                .eq('id', id)
+                .select();
+
+              if (!updateErr && updateData && updateData.length > 0 && parseFloat(updateData[0].price) === newPrice) {
+                fallbackSucceeded = true;
+              }
+            }
+
+            // Direct verification
+            const { data: checkData } = await client.from('products').select('price').eq('id', id).single();
+            if (checkData && parseFloat(checkData.price) === newPrice) {
+              fallbackSucceeded = true;
+            }
+          } catch (dbErr) {
+            console.error('Supabase direct update error:', dbErr);
+          }
+        }
+
+        if (fallbackSucceeded) {
+          item.price = newPrice;
+          showToast(`✅ Price for "${item.title}" saved & verified in Supabase: ₹${newPrice}`);
+        } else {
+          showToast(`❌ Unable to save price for "${item.title}". Database write failed.`);
+          inputEl.value = item.price;
+        }
+      } finally {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.textContent = 'Save';
+        }
+      }
     }
 
     async function toggleStockStatus(id) {

@@ -138,6 +138,25 @@ function parseBody(req) {
 const inventoryLedger = new Map();
 const ordersStore = new Map();
 
+// Local persistent catalogue price overrides
+const overridesPath = path.join(__dirname, 'catalog_overrides.json');
+let priceOverrides = {};
+if (fs.existsSync(overridesPath)) {
+  try {
+    priceOverrides = JSON.parse(fs.readFileSync(overridesPath, 'utf8'));
+  } catch (e) {
+    priceOverrides = {};
+  }
+}
+
+function saveOverrides() {
+  try {
+    fs.writeFileSync(overridesPath, JSON.stringify(priceOverrides, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('Could not save overrides file:', e.message);
+  }
+}
+
 // Generate Order Number
 function generateOrderNumber() {
   const rnd = Math.floor(1000 + Math.random() * 9000);
@@ -187,6 +206,214 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --------------------------------------------------------------------------
+  // API ROUTE: GET /api/products (Live Catalogue with DB & Override Pricing)
+  // --------------------------------------------------------------------------
+  if (req.method === 'GET' && pathname === '/api/products') {
+    try {
+      let products = [];
+      try {
+        const prodRes = await supabaseRequest('products?select=*&order=sort_order.asc');
+        if (prodRes.status === 200 && Array.isArray(prodRes.data)) {
+          products = prodRes.data;
+        }
+      } catch (e) {
+        console.warn('Supabase fetch products note:', e.message);
+      }
+
+      // Merge with priceOverrides
+      if (products.length > 0) {
+        products = products.map(p => {
+          if (priceOverrides[p.id]) {
+            return {
+              ...p,
+              price: priceOverrides[p.id].price !== undefined ? priceOverrides[p.id].price : p.price,
+              deposit_price: priceOverrides[p.id].deposit_price !== undefined ? priceOverrides[p.id].deposit_price : p.deposit_price,
+              cod_price: priceOverrides[p.id].cod_price !== undefined ? priceOverrides[p.id].cod_price : p.cod_price,
+              updated_at: priceOverrides[p.id].updated_at || p.updated_at
+            };
+          }
+          return p;
+        });
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        products: products,
+        total: products.length
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: POST /api/admin/update-product-price
+  // --------------------------------------------------------------------------
+  if (req.method === 'POST' && pathname === '/api/admin/update-product-price') {
+    try {
+      const body = await parseBody(req);
+      const productId = (body.product_id || body.id || '').trim();
+      const rawPrice = body.price;
+      const numPrice = parseFloat(rawPrice);
+      const rawDeposit = body.deposit_price !== undefined ? parseFloat(body.deposit_price) : 49.00;
+
+      if (!productId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: 'Product ID is required.' }));
+      }
+
+      if (isNaN(numPrice) || numPrice <= 0 || !isFinite(numPrice)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: 'Price must be a valid positive number.' }));
+      }
+
+      const numDeposit = isNaN(rawDeposit) || rawDeposit < 0 || rawDeposit > numPrice ? 49.00 : rawDeposit;
+      const numCod = numPrice - numDeposit;
+
+      // 1. Attempt Supabase RPC update_product_price
+      let dbPersisted = false;
+      let dbProduct = null;
+
+      try {
+        const rpcRes = await supabaseRequest('rpc/update_product_price', 'POST', {
+          p_product_id: productId,
+          p_new_price: numPrice,
+          p_new_deposit: numDeposit
+        });
+        if (rpcRes.status === 200 && rpcRes.data && rpcRes.data.success) {
+          dbPersisted = true;
+          dbProduct = rpcRes.data;
+        }
+      } catch (rpcErr) {
+        console.warn('RPC update_product_price note:', rpcErr.message);
+      }
+
+      // 2. If RPC did not persist, attempt direct PATCH on products table
+      if (!dbPersisted) {
+        try {
+          const patchRes = await supabaseRequest(`products?id=eq.${encodeURIComponent(productId)}`, 'PATCH', {
+            price: numPrice,
+            deposit_price: numDeposit,
+            cod_price: numCod,
+            updated_at: new Date().toISOString()
+          });
+          if (patchRes.status === 200 && Array.isArray(patchRes.data) && patchRes.data.length > 0) {
+            dbPersisted = true;
+            dbProduct = patchRes.data[0];
+          }
+        } catch (patchErr) {
+          console.warn('Direct products patch note:', patchErr.message);
+        }
+      }
+
+      // 3. Confirm with GET verification from Supabase
+      try {
+        const verifyRes = await supabaseRequest(`products?id=eq.${encodeURIComponent(productId)}&select=*`);
+        if (verifyRes.status === 200 && Array.isArray(verifyRes.data) && verifyRes.data.length > 0) {
+          const liveProd = verifyRes.data[0];
+          if (parseFloat(liveProd.price) === numPrice) {
+            dbPersisted = true;
+            dbProduct = liveProd;
+          }
+        }
+      } catch (verifyErr) {
+        console.warn('Verification query note:', verifyErr.message);
+      }
+
+      // 4. Update in-memory & file overrides
+      priceOverrides[productId] = {
+        price: numPrice,
+        deposit_price: numDeposit,
+        cod_price: numCod,
+        updated_at: new Date().toISOString(),
+        dbPersisted: dbPersisted
+      };
+      saveOverrides();
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        product_id: productId,
+        price: numPrice,
+        deposit_price: numDeposit,
+        cod_price: numCod,
+        db_persisted: dbPersisted,
+        product: dbProduct || {
+          id: productId,
+          price: numPrice,
+          deposit_price: numDeposit,
+          cod_price: numCod,
+          updated_at: priceOverrides[productId].updated_at
+        },
+        message: dbPersisted
+          ? `Product price successfully persisted to Supabase database as ₹${numPrice}.`
+          : `Product price updated on server as ₹${numPrice}. To persist directly to Supabase, execute supabase_price_sync_migration.sql in the Supabase SQL editor.`
+      }));
+    } catch (e) {
+      console.error('Error in /api/admin/update-product-price:', e);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: POST /api/admin/update-settings
+  // --------------------------------------------------------------------------
+  if (req.method === 'POST' && pathname === '/api/admin/update-settings') {
+    try {
+      const body = await parseBody(req);
+      const { framePrice, deposit, cod, gift, waPhone, upiId } = body;
+
+      if (framePrice && parseFloat(framePrice) > 0) {
+        CONFIG.PRICES.FRAME_BASE = parseFloat(framePrice);
+      }
+      if (deposit && parseFloat(deposit) > 0) {
+        CONFIG.PRICES.DEPOSIT_PER_FRAME = parseFloat(deposit);
+      }
+      if (cod && parseFloat(cod) >= 0) {
+        CONFIG.PRICES.COD_PER_FRAME = parseFloat(cod);
+      }
+      if (gift && parseFloat(gift) >= 0) {
+        CONFIG.PRICES.GIFT_PACKAGING = parseFloat(gift);
+      }
+
+      const settingsToUpdate = [
+        { key: 'frame_base_price', value: String(framePrice) },
+        { key: 'deposit_amount', value: String(deposit) },
+        { key: 'cod_balance', value: String(cod) },
+        { key: 'gift_packaging_price', value: String(gift) },
+        { key: 'whatsapp_helpline', value: String(waPhone) },
+        { key: 'store_upi_id', value: String(upiId) }
+      ];
+
+      for (const s of settingsToUpdate) {
+        if (s.value && s.value !== 'undefined') {
+          try {
+            await supabaseRequest('rpc/update_store_setting', 'POST', {
+              p_key: s.key,
+              p_value: s.value
+            });
+          } catch (e) {
+            // fallback
+          }
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        message: 'Store settings updated successfully.',
+        current_prices: CONFIG.PRICES
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // API ROUTE: POST /api/create-order
   // --------------------------------------------------------------------------
   if (req.method === 'POST' && pathname === '/api/create-order') {
@@ -217,7 +444,7 @@ const server = http.createServer(async (req, res) => {
         }));
       }
 
-      // Check stock for ready-made physical items
+      // Check stock & load live database prices
       let productsDb = [];
       try {
         const prodRes = await supabaseRequest('products?select=*');
@@ -228,11 +455,25 @@ const server = http.createServer(async (req, res) => {
         console.warn('Could not query products from DB, using internal validation:', e.message);
       }
 
+      // Merge overrides
+      productsDb = productsDb.map(p => {
+        if (priceOverrides[p.id]) {
+          return {
+            ...p,
+            price: priceOverrides[p.id].price !== undefined ? priceOverrides[p.id].price : p.price,
+            deposit_price: priceOverrides[p.id].deposit_price !== undefined ? priceOverrides[p.id].deposit_price : p.deposit_price,
+            cod_price: priceOverrides[p.id].cod_price !== undefined ? priceOverrides[p.id].cod_price : p.cod_price
+          };
+        }
+        return p;
+      });
+
       for (const item of items) {
-        if (item.isReadyMade && item.productId) {
-          const dbMatch = productsDb.find(p => p.id === item.productId);
-          const currentStock = inventoryLedger.has(item.productId)
-            ? inventoryLedger.get(item.productId)
+        const pId = item.productId || item.product_id || item.id;
+        if (item.isReadyMade && pId) {
+          const dbMatch = productsDb.find(p => p.id === pId);
+          const currentStock = inventoryLedger.has(pId)
+            ? inventoryLedger.get(pId)
             : (dbMatch && dbMatch.stock_quantity !== undefined ? dbMatch.stock_quantity : (dbMatch && dbMatch.in_stock === false ? 0 : 5));
 
           if (currentStock <= 0 || (dbMatch && dbMatch.in_stock === false)) {
@@ -245,7 +486,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
 
-      // Authoritative Price Calculation (Rule 3)
+      // Authoritative Price Calculation (Server Enforces Live DB / Override Prices)
       const frameCount = items.length;
       let giftTotal = 0.00;
 
@@ -260,9 +501,25 @@ const server = http.createServer(async (req, res) => {
         giftTotal = CONFIG.PRICES.GIFT_PACKAGING;
       }
 
-      const subtotal = frameCount * CONFIG.PRICES.FRAME_BASE;
+      let subtotal = 0.00;
+      let calculatedDeposit = 0.00;
+
+      items.forEach(item => {
+        const pId = item.productId || item.product_id || item.id;
+        const dbMatch = productsDb.find(p => p.id === pId);
+        const itemBasePrice = (dbMatch && dbMatch.price != null)
+          ? parseFloat(dbMatch.price)
+          : (priceOverrides[pId] ? priceOverrides[pId].price : CONFIG.PRICES.FRAME_BASE);
+        const itemBaseDeposit = (dbMatch && dbMatch.deposit_price != null)
+          ? parseFloat(dbMatch.deposit_price)
+          : (priceOverrides[pId] && priceOverrides[pId].deposit_price != null ? priceOverrides[pId].deposit_price : CONFIG.PRICES.DEPOSIT_PER_FRAME);
+
+        subtotal += itemBasePrice;
+        calculatedDeposit += itemBaseDeposit;
+      });
+
       const totalAmount = subtotal + giftTotal;
-      const depositAmount = frameCount * CONFIG.PRICES.DEPOSIT_PER_FRAME; // ₹49 * frame count
+      const depositAmount = calculatedDeposit > 0 ? calculatedDeposit : (frameCount * CONFIG.PRICES.DEPOSIT_PER_FRAME);
       const codAmount = totalAmount - depositAmount;
 
       let orderId = null;
@@ -289,21 +546,30 @@ const server = http.createServer(async (req, res) => {
         orderId = 'order_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
       }
 
-      // Build Order Items Snapshot
+      // Build Order Items Snapshot with live authoritative prices
       const itemRows = items.map(i => {
+        const pId = i.productId || i.product_id || (i.isReadyMade ? 'ready-frame' : 'custom-frame');
+        const dbMatch = productsDb.find(p => p.id === pId);
+        const basePrice = (dbMatch && dbMatch.price != null)
+          ? parseFloat(dbMatch.price)
+          : (priceOverrides[pId] ? priceOverrides[pId].price : CONFIG.PRICES.FRAME_BASE);
+        const baseDeposit = (dbMatch && dbMatch.deposit_price != null)
+          ? parseFloat(dbMatch.deposit_price)
+          : (priceOverrides[pId] && priceOverrides[pId].deposit_price != null ? priceOverrides[pId].deposit_price : CONFIG.PRICES.DEPOSIT_PER_FRAME);
+
         const hasGift = i.gift && (i.gift.isGift || i.gift === true);
         const itemGiftPrice = hasGift ? CONFIG.PRICES.GIFT_PACKAGING : 0.00;
-        const itemPrice = CONFIG.PRICES.FRAME_BASE + itemGiftPrice;
-        const itemDeposit = CONFIG.PRICES.DEPOSIT_PER_FRAME;
+        const itemPrice = basePrice + itemGiftPrice;
+        const itemDeposit = baseDeposit;
         const itemCod = itemPrice - itemDeposit;
 
         return {
           order_id: orderId,
-          product_id: i.productId || i.product_id || (i.isReadyMade ? 'ready-frame' : 'custom-frame'),
-          product_title: i.productTitle || i.title || 'A4 Handmade Frame',
-          product_image: i.productImage || i.image || 'design1.jpg',
+          product_id: pId,
+          product_title: i.productTitle || i.title || (dbMatch ? dbMatch.title : 'A4 Handmade Frame'),
+          product_image: i.productImage || i.image || (dbMatch ? dbMatch.image_url : 'design1.jpg'),
           is_ready_made: !!i.isReadyMade,
-          category_label: i.categoryLabel || (i.isReadyMade ? 'Ready-to-Ship' : 'Custom Calligraphy'),
+          category_label: i.categoryLabel || (dbMatch ? dbMatch.category_label : (i.isReadyMade ? 'Ready-to-Ship' : 'Custom Calligraphy')),
           english_name: i.englishName || (i.personalization && i.personalization.name) || '',
           arabic_name: i.arabicName || (i.personalization && i.personalization.arabic) || '',
           ink_style: i.inkLabel || 'Obsidian Black',
