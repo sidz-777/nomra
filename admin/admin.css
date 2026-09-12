@@ -591,3 +591,291 @@ body {
     color: #000 !important;
   }
 }
+
+/* ==========================================================================
+   PHASE 3 OPERATIONS ADDITIONS
+   ========================================================================== */
+
+/* Date Range Strip */
+.date-filter-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.date-buttons-group {
+  display: inline-flex;
+  background: var(--card-admin);
+  border: 1px solid var(--line-admin);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 2px;
+}
+.date-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.date-btn:hover {
+  color: var(--ink-admin);
+}
+.date-btn.active {
+  background: var(--accent-gold);
+  color: #141210;
+  font-weight: 700;
+}
+
+/* Sub-filter Tags (Gift, Personalized, Ready) */
+.sub-filter-tags {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+.sub-filter-chip {
+  background: var(--card-admin);
+  border: 1px solid var(--line-admin);
+  color: var(--ink-muted);
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.sub-filter-chip:hover {
+  border-color: var(--accent-gold);
+  color: var(--ink-admin);
+}
+.sub-filter-chip.active {
+  background: rgba(212, 175, 106, 0.15);
+  border-color: var(--accent-gold);
+  color: var(--accent-gold);
+}
+
+/* Production Checklist in Modal */
+.production-checklist-card {
+  background: rgba(212, 175, 106, 0.04);
+  border: 1px solid rgba(212, 175, 106, 0.25);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.checklist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+.checklist-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-gold);
+}
+.checklist-progress-text {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  font-weight: 600;
+}
+.checklist-items-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem 1rem;
+}
+@media (max-width: 600px) {
+  .checklist-items-grid { grid-template-columns: 1fr; }
+}
+.checklist-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-admin);
+  cursor: pointer;
+  user-select: none;
+}
+.checklist-label input[type="checkbox"] {
+  margin-top: 2px;
+  accent-color: var(--accent-gold);
+  cursor: pointer;
+}
+.checklist-label.checked {
+  color: var(--ink-muted);
+  text-decoration: line-through;
+}
+
+/* Courier & AWB Box */
+.shipping-manager-box {
+  background: var(--card-admin);
+  border: 1px solid var(--line-admin);
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.shipping-manager-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent-gold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.shipping-inputs-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1.5fr auto;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+@media (max-width: 600px) {
+  .shipping-inputs-grid { grid-template-columns: 1fr; }
+}
+.btn-ship-action {
+  background: var(--accent-gold);
+  color: #141210;
+  border: none;
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-ship-action:hover {
+  background: var(--accent-gold-hover);
+}
+.awb-warning-banner {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid var(--warning);
+  color: #FCD34D;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.76rem;
+  margin-top: 0.5rem;
+  display: none;
+}
+
+/* WhatsApp Hub Modal */
+.wa-template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+  padding-right: 4px;
+}
+.wa-template-card {
+  background: var(--bg-admin);
+  border: 1px solid var(--line-admin);
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.wa-template-card:hover, .wa-template-card.active {
+  border-color: #25D366;
+  background: rgba(37, 211, 102, 0.08);
+}
+.wa-template-name {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--ink-admin);
+}
+.wa-preview-box {
+  background: #0B141A;
+  border: 1px solid #1F2C34;
+  border-radius: 8px;
+  padding: 1rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #E9EDEF;
+  white-space: pre-wrap;
+  margin-bottom: 1rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+/* Pagination Bar */
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 0;
+  border-top: 1px solid var(--line-admin);
+  margin-top: 1rem;
+}
+.pagination-info {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+.pagination-controls {
+  display: flex;
+  gap: 0.5rem;
+}
+.btn-page {
+  background: var(--card-admin);
+  border: 1px solid var(--line-admin);
+  color: var(--ink-admin);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-page:hover:not(:disabled) {
+  border-color: var(--accent-gold);
+}
+.btn-page:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Tab Navigation */
+.admin-tabs-nav {
+  display: flex;
+  border-bottom: 1px solid var(--line-admin);
+  margin-bottom: 1.5rem;
+  gap: 1.5rem;
+}
+.admin-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.75rem 0.25rem;
+  cursor: pointer;
+  position: relative;
+  transition: var(--transition);
+}
+.admin-tab-btn:hover {
+  color: var(--ink-admin);
+}
+.admin-tab-btn.active {
+  color: var(--accent-gold);
+}
+.admin-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent-gold);
+}

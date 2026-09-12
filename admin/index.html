@@ -3,13 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NAMORA Admin — Orders &amp; Dispatch Hub</title>
+  <title>NAMORA Admin — Order Management &amp; Dispatch</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cinzel:wght@600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="admin.css">
 
-  <!-- SUPABASE SDK & CONFIG -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../supabase-config.js"></script>
   <script src="admin.js" defer></script>
@@ -19,15 +18,27 @@
   <!-- SIDEBAR -->
   <aside class="admin-sidebar">
     <div class="sidebar-brand">
-      <a href="index.html" class="sidebar-logo">NAMORA</a>
-      <div class="sidebar-sub">Admin Order Hub</div>
+      <div class="brand-name">NAMORA</div>
+      <div class="brand-badge">Operations Portal</div>
     </div>
 
     <ul class="sidebar-nav">
       <li>
-        <a href="index.html" class="active">
+        <a href="javascript:void(0)" id="navOrders" class="active" onclick="switchAdminTab('orders')">
           <span>📦</span>
-          <span>Orders &amp; Shipments</span>
+          <span>Orders &amp; Fulfillment</span>
+        </a>
+      </li>
+      <li>
+        <a href="javascript:void(0)" id="navCustomers" onclick="switchAdminTab('customers')">
+          <span>👥</span>
+          <span>Customer Directory</span>
+        </a>
+      </li>
+      <li>
+        <a href="javascript:void(0)" id="navReviews" onclick="switchAdminTab('reviews')">
+          <span>⭐</span>
+          <span>Reviews Moderation</span>
         </a>
       </li>
       <li>
@@ -61,7 +72,7 @@
   <!-- MAIN AREA -->
   <main class="admin-main">
     <header class="admin-header">
-      <div class="admin-header-title">Order Management &amp; Dispatch</div>
+      <div class="admin-header-title" id="adminHeaderTitle">Order Operations &amp; Dispatch</div>
       <div class="admin-header-actions">
         <a href="../" target="_blank" class="btn-website-link">
           <span>👁️ View Live Website</span>
@@ -75,90 +86,208 @@
         <div>
           <strong style="color: var(--accent-gold);">⚡ Demo Preview Mode Active</strong>
           <p style="font-size: 0.8rem; color: var(--ink-muted); margin-top: 0.2rem;">
-            Displaying sample frame orders. To connect real database sync, paste your Supabase URL &amp; Key in <code>supabase-config.js</code>.
+            Displaying sample frame orders. Connected to live Supabase backend.
           </p>
         </div>
         <a href="settings.html" class="btn-website-link" style="white-space: nowrap;">Config Guide &rarr;</a>
       </div>
 
-      <!-- METRICS CARDS -->
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <span class="metric-label">Total Orders</span>
-          <span class="metric-value" id="metricTotalOrders">0</span>
-          <span class="metric-sub">Lifetime orders</span>
+      <!-- TABS NAVIGATION -->
+      <div class="admin-tabs-nav">
+        <button type="button" class="admin-tab-btn active" id="tabBtnOrders" onclick="switchAdminTab('orders')">
+          📦 Orders &amp; Dispatch
+        </button>
+        <button type="button" class="admin-tab-btn" id="tabBtnCustomers" onclick="switchAdminTab('customers')">
+          👥 Customers Directory
+        </button>
+        <button type="button" class="admin-tab-btn" id="tabBtnReviews" onclick="switchAdminTab('reviews')">
+          ⭐ Reviews Moderation
+        </button>
+      </div>
+
+      <!-- ================================================================== -->
+      <!-- TAB 1: ORDERS & DISPATCH -->
+      <!-- ================================================================== -->
+      <div id="tabContentOrders">
+        <!-- DATE RANGE FILTER STRIP -->
+        <div class="date-filter-strip">
+          <div style="font-size: 0.78rem; color: var(--ink-muted); font-weight: 600; text-transform: uppercase;">
+            📅 Analytics Timeframe:
+          </div>
+          <div class="date-buttons-group">
+            <button type="button" class="date-btn active" onclick="changeAnalyticsTimeframe('all', this)">All Time</button>
+            <button type="button" class="date-btn" onclick="changeAnalyticsTimeframe('today', this)">Today</button>
+            <button type="button" class="date-btn" onclick="changeAnalyticsTimeframe('7days', this)">Last 7 Days</button>
+            <button type="button" class="date-btn" onclick="changeAnalyticsTimeframe('30days', this)">Last 30 Days</button>
+            <button type="button" class="date-btn" onclick="changeAnalyticsTimeframe('year', this)">This Year</button>
+          </div>
         </div>
-        <div class="metric-card" style="border-left: 3px solid var(--warning);">
-          <span class="metric-label">Awaiting ₹49 Deposit</span>
-          <span class="metric-value" style="color: var(--warning);" id="metricPendingAdvance">0</span>
-          <span class="metric-sub">Pending confirmation</span>
+
+        <!-- METRICS CARDS -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <span class="metric-label">Total Orders</span>
+            <span class="metric-value" id="metricTotalOrders">0</span>
+            <span class="metric-sub">Orders in period</span>
+          </div>
+          <div class="metric-card" style="border-left: 3px solid var(--warning);">
+            <span class="metric-label">Awaiting Deposit</span>
+            <span class="metric-value" style="color: var(--warning);" id="metricPendingAdvance">0</span>
+            <span class="metric-sub">Pending confirmation</span>
+          </div>
+          <div class="metric-card" style="border-left: 3px solid var(--purple);">
+            <span class="metric-label">In Calligraphy Studio</span>
+            <span class="metric-value" style="color: var(--purple);" id="metricInStudio">0</span>
+            <span class="metric-sub">Handcrafting &amp; Review</span>
+          </div>
+          <div class="metric-card" style="border-left: 3px solid var(--accent-gold);">
+            <span class="metric-label">Dispatched Air</span>
+            <span class="metric-value" style="color: var(--accent-gold);" id="metricDispatched">0</span>
+            <span class="metric-sub">In transit with courier</span>
+          </div>
+          <div class="metric-card" style="border-left: 3px solid var(--success);">
+            <span class="metric-label">Delivered</span>
+            <span class="metric-value" style="color: var(--success);" id="metricDelivered">0</span>
+            <span class="metric-sub">Safely delivered</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">Gross Revenue</span>
+            <span class="metric-value" style="color: var(--accent-gold);" id="metricTotalRevenue">₹0</span>
+            <span class="metric-sub" id="metricAovSub">AOV: ₹0</span>
+          </div>
+          <div class="metric-card" style="border-left: 3px solid #10B981;">
+            <span class="metric-label">Deposits Collected</span>
+            <span class="metric-value" style="color: #10B981;" id="metricDepositsCollected">₹0</span>
+            <span class="metric-sub">Prepaid advances paid</span>
+          </div>
+          <div class="metric-card" style="border-left: 3px solid #F59E0B;">
+            <span class="metric-label">COD Outstanding</span>
+            <span class="metric-value" style="color: #F59E0B;" id="metricCodOutstanding">₹0</span>
+            <span class="metric-sub">Collect upon delivery</span>
+          </div>
         </div>
-        <div class="metric-card" style="border-left: 3px solid var(--purple);">
-          <span class="metric-label">In Calligraphy Studio</span>
-          <span class="metric-value" style="color: var(--purple);" id="metricInStudio">0</span>
-          <span class="metric-sub">Handcrafting in progress</span>
+
+        <!-- CONTROLS: FILTERS & SEARCH -->
+        <div class="controls-strip">
+          <div style="flex: 1;">
+            <div class="status-filter-pills">
+              <button type="button" class="filter-btn active" onclick="filterByStatus('all', this)">
+                All Orders <span class="filter-badge" id="countAll">0</span>
+              </button>
+              <button type="button" class="filter-btn" onclick="filterByStatus('pending_payment', this)">
+                ⏳ Awaiting Deposit <span class="filter-badge" id="countPending">0</span>
+              </button>
+              <button type="button" class="filter-btn" onclick="filterByStatus('confirmed', this)">
+                💳 Confirmed <span class="filter-badge" id="countConfirmed">0</span>
+              </button>
+              <button type="button" class="filter-btn" onclick="filterByStatus('in_studio', this)">
+                🎨 Studio Crafting <span class="filter-badge" id="countInStudio">0</span>
+              </button>
+              <button type="button" class="filter-btn" onclick="filterByStatus('ready_to_ship', this)">
+                📦 Ready to Ship <span class="filter-badge" id="countReady">0</span>
+              </button>
+              <button type="button" class="filter-btn" onclick="filterByStatus('shipped', this)">
+                🚚 Dispatched <span class="filter-badge" id="countDispatched">0</span>
+              </button>
+              <button type="button" class="filter-btn" onclick="filterByStatus('delivered', this)">
+                ✅ Delivered <span class="filter-badge" id="countDelivered">0</span>
+              </button>
+              <button type="button" class="filter-btn" onclick="filterByStatus('cancelled', this)">
+                ❌ Cancelled <span class="filter-badge" id="countCancelled">0</span>
+              </button>
+            </div>
+
+            <!-- Sub-filter Tags (Gift, Personalized, Ready) -->
+            <div class="sub-filter-tags">
+              <span class="sub-filter-chip active" onclick="filterBySubTag('all', this)">All Types</span>
+              <span class="sub-filter-chip" onclick="filterBySubTag('gift', this)">🎁 Gift Packaging Only</span>
+              <span class="sub-filter-chip" onclick="filterBySubTag('personalized', this)">✒️ Personalized Calligraphy</span>
+              <span class="sub-filter-chip" onclick="filterBySubTag('ready_stock', this)">⚡ Ready-to-Ship Edition</span>
+            </div>
+          </div>
+
+          <div class="search-box-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="search-input" placeholder="Search order #, customer, phone, AWB..." oninput="handleSearch(this.value)" />
+          </div>
         </div>
-        <div class="metric-card" style="border-left: 3px solid var(--accent-gold);">
-          <span class="metric-label">Dispatched Air</span>
-          <span class="metric-value" style="color: var(--accent-gold);" id="metricDispatched">0</span>
-          <span class="metric-sub">With courier partners</span>
+
+        <!-- ORDERS TABLE -->
+        <div class="orders-table-wrapper">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th>Order Ref</th>
+                <th>Customer &amp; Delivery Address</th>
+                <th>Frames &amp; Calligraphy</th>
+                <th>Status</th>
+                <th style="text-align: right;">Amount &amp; COD</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+              <!-- Dynamically populated by admin.js -->
+            </tbody>
+          </table>
         </div>
-        <div class="metric-card" style="border-left: 3px solid var(--success);">
-          <span class="metric-label">Delivered</span>
-          <span class="metric-value" style="color: var(--success);" id="metricDelivered">0</span>
-          <span class="metric-sub">Safely reached customers</span>
-        </div>
-        <div class="metric-card">
-          <span class="metric-label">Total Revenue</span>
-          <span class="metric-value" style="color: var(--accent-gold);" id="metricTotalRevenue">₹0</span>
-          <span class="metric-sub">Gross merchandise value</span>
+
+        <!-- PAGINATION BAR -->
+        <div class="pagination-bar">
+          <div class="pagination-info" id="paginationInfo">Showing 0 orders</div>
+          <div class="pagination-controls">
+            <button type="button" class="btn-page" id="btnPrevPage" onclick="changePage(-1)">&larr; Previous</button>
+            <span style="font-size: 0.8rem; padding: 0.35rem 0.5rem;" id="pageIndicator">Page 1</span>
+            <button type="button" class="btn-page" id="btnNextPage" onclick="changePage(1)">Next &rarr;</button>
+          </div>
         </div>
       </div>
 
-      <!-- CONTROLS: FILTERS & SEARCH -->
-      <div class="controls-strip">
-        <div class="status-filter-pills">
-          <button type="button" class="filter-btn active" onclick="filterByStatus('all', this)">
-            All Orders <span class="filter-badge" id="countAll">0</span>
-          </button>
-          <button type="button" class="filter-btn" onclick="filterByStatus('pending_advance', this)">
-            ⏳ Awaiting Deposit <span class="filter-badge" id="countPending">0</span>
-          </button>
-          <button type="button" class="filter-btn" onclick="filterByStatus('in_studio', this)">
-            🎨 In Studio <span class="filter-badge" id="countInStudio">0</span>
-          </button>
-          <button type="button" class="filter-btn" onclick="filterByStatus('dispatched', this)">
-            🚚 Dispatched <span class="filter-badge" id="countDispatched">0</span>
-          </button>
-          <button type="button" class="filter-btn" onclick="filterByStatus('delivered', this)">
-            ✅ Delivered <span class="filter-badge" id="countDelivered">0</span>
-          </button>
-        </div>
-
-        <div class="search-box-wrapper">
-          <span class="search-icon">🔍</span>
-          <input type="text" class="search-input" placeholder="Search by name, phone, order ID, or PIN..." oninput="handleSearch(this.value)" />
+      <!-- ================================================================== -->
+      <!-- TAB 2: CUSTOMERS DIRECTORY -->
+      <!-- ================================================================== -->
+      <div id="tabContentCustomers" style="display: none;">
+        <div class="orders-table-wrapper">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th>Customer Name</th>
+                <th>Phone Number</th>
+                <th>Total Orders</th>
+                <th>Lifetime Spend</th>
+                <th>Delivery Address</th>
+                <th style="text-align: right;">Direct Contact</th>
+              </tr>
+            </thead>
+            <tbody id="customersTableBody">
+              <!-- Injected by admin.js -->
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- ORDERS TABLE -->
-      <div class="orders-table-wrapper">
-        <table class="orders-table">
-          <thead>
-            <tr>
-              <th>Order Ref</th>
-              <th>Customer &amp; Delivery Address</th>
-              <th>Frames &amp; Calligraphy</th>
-              <th>Status</th>
-              <th style="text-align: right;">Amount &amp; COD</th>
-              <th style="text-align: right;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="ordersTableBody">
-            <!-- Dynamically populated by admin.js -->
-          </tbody>
-        </table>
+      <!-- ================================================================== -->
+      <!-- TAB 3: REVIEWS MODERATION -->
+      <!-- ================================================================== -->
+      <div id="tabContentReviews" style="display: none;">
+        <div class="orders-table-wrapper">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th>Customer</th>
+                <th>Rating</th>
+                <th>Comment</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th style="text-align: right;">Moderation Action</th>
+              </tr>
+            </thead>
+            <tbody id="reviewsTableBody">
+              <!-- Injected by admin.js -->
+            </tbody>
+          </table>
+        </div>
       </div>
+
     </div>
   </main>
 
@@ -168,6 +297,45 @@
       <button type="button" class="modal-close-btn" onclick="closeModal()">&times;</button>
       <div id="modalContentArea">
         <!-- Injected by admin.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- WHATSAPP 11-TEMPLATE ASSISTED HUB MODAL -->
+  <div class="admin-modal-overlay" id="whatsAppModal" onclick="if(event.target===this)closeWhatsAppModal()">
+    <div class="admin-modal-card" style="max-width: 580px;">
+      <button type="button" class="modal-close-btn" onclick="closeWhatsAppModal()">&times;</button>
+      <div style="display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem;">
+        <span style="font-size: 1.5rem;">💬</span>
+        <div>
+          <div style="font-family: var(--font-luxury); font-size: 1.15rem; color: var(--accent-gold); font-weight: 700;">
+            WhatsApp Customer Communication Hub
+          </div>
+          <div style="font-size: 0.78rem; color: var(--ink-muted);" id="waModalSubtitle">
+            Order NAM-XXXX · Select a template
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--accent-gold); font-weight: 700; margin-bottom: 0.4rem;">
+        Select Operational Message Template:
+      </div>
+      <div class="wa-template-list" id="waTemplateList">
+        <!-- Dynamically rendered by admin.js -->
+      </div>
+
+      <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--ink-muted); font-weight: 700; margin-bottom: 0.4rem;">
+        Live Message Preview:
+      </div>
+      <div class="wa-preview-box" id="waPreviewText"></div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.75rem; color: var(--ink-muted);">
+          * Assisted dispatch: Opens official WhatsApp Web / Mobile app directly
+        </span>
+        <button type="button" class="btn-ship-action" id="waLaunchBtn" onclick="launchWhatsAppMessage()" style="background: #25D366; color: #fff;">
+          🚀 Open in WhatsApp &rarr;
+        </button>
       </div>
     </div>
   </div>
