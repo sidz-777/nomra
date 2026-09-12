@@ -5,7 +5,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "start:legacy": "node server.js",
+    "dev:legacy": "node server.js",
+    "dev:next": "next dev -p 3000",
+    "build:next": "next build",
+    "start:next": "next start -p 3000",
+    "build": "next build"
   },
   "keywords": [
     "namora",
@@ -21,5 +27,21 @@
   "private": true,
   "engines": {
     "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "autoprefixer": "^10.6.0",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.6.3"
   }
 }

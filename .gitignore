@@ -13,3 +13,9 @@ npm-debug.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Next.js Build
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
