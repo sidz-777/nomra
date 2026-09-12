@@ -7,6 +7,8 @@ import { PageShell } from '@/components/layout/PageShell';
 import { Container } from '@/components/layout/Container';
 import { formatINR } from '@/lib/cart/cart-calculations';
 import { Button } from '@/components/ui';
+import { RazorpayPaymentButton } from '@/components/checkout/RazorpayPaymentButton';
+import { VerifyPaymentResponse } from '@/lib/payments/types';
 
 function ConfirmationContent() {
   const searchParams = useSearchParams();
@@ -14,13 +16,26 @@ function ConfirmationContent() {
   const orderIdParam = searchParams.get('orderId') || '';
 
   const [storedOrder, setStoredOrder] = useState<any>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'paid'>('unpaid');
+  const [paymentId, setPaymentId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         const raw = window.sessionStorage.getItem('namora_last_order');
         if (raw) {
-          setStoredOrder(JSON.parse(raw));
+          const parsed = JSON.parse(raw);
+          setStoredOrder(parsed);
+          if (
+            parsed.status === 'advance_paid' ||
+            parsed.payment_status === 'deposit_received' ||
+            parsed.payment_status === 'paid'
+          ) {
+            setPaymentStatus('paid');
+            if (parsed.razorpay_payment_id) {
+              setPaymentId(parsed.razorpay_payment_id);
+            }
+          }
         }
       } catch {
         // Ignored
@@ -29,27 +44,61 @@ function ConfirmationContent() {
   }, []);
 
   const orderNumber = storedOrder?.orderNumber || orderNumberParam;
+  const orderId = storedOrder?.orderId || orderIdParam || orderNumber;
+  const rawDepositAmount = storedOrder?.depositAmount || 49;
   const grandTotal = storedOrder?.totalAmount ? formatINR(storedOrder.totalAmount) : '₹499';
-  const depositAmount = storedOrder?.depositAmount ? formatINR(storedOrder.depositAmount) : '₹49';
+  const depositAmount = formatINR(rawDepositAmount);
   const codAmount = storedOrder?.codAmount ? formatINR(storedOrder.codAmount) : '₹450';
   const frameCount = storedOrder?.frameCount || 1;
+
+  const handlePaymentSuccess = (verifiedResponse: VerifyPaymentResponse) => {
+    setPaymentStatus('paid');
+    if (verifiedResponse.payment_id) {
+      setPaymentId(verifiedResponse.payment_id);
+    }
+    // Update sessionStorage so page reload remembers paid status
+    if (typeof window !== 'undefined') {
+      try {
+        const updated = {
+          ...storedOrder,
+          status: 'advance_paid',
+          payment_status: 'deposit_received',
+          razorpay_payment_id: verifiedResponse.payment_id,
+        };
+        window.sessionStorage.setItem('namora_last_order', JSON.stringify(updated));
+        setStoredOrder(updated);
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header Banner */}
       <div className="text-center space-y-3">
-        <div className="w-16 h-16 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-2xl mx-auto shadow-luxury">
-          ✓
+        <div 
+          className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl mx-auto shadow-luxury transition-all duration-500 ${
+            paymentStatus === 'paid'
+              ? 'bg-emerald-950/80 border-2 border-emerald-500 text-emerald-300'
+              : 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-400'
+          }`}
+        >
+          {paymentStatus === 'paid' ? '🛡️' : '✓'}
         </div>
         <div className="space-y-1">
           <span className="text-xs font-mono uppercase tracking-widest text-namora-gold">
-            Order Reference Confirmed
+            {paymentStatus === 'paid' ? 'Deposit Verified & Confirmed' : 'Order Registered in System'}
           </span>
           <h1 className="font-hero text-2xl sm:text-3xl font-bold text-namora-ink">
-            Your Bespoke Frame is Booked!
+            {paymentStatus === 'paid'
+              ? 'Deposit Received — Production Queued!'
+              : 'Your Bespoke Frame is Reserved!'}
           </h1>
           <p className="text-xs sm:text-sm text-namora-muted max-w-md mx-auto leading-relaxed">
-            Thank you for placing your order with NAMORA. Your physical master frame order has been securely registered in our production queue.
+            {paymentStatus === 'paid'
+              ? 'Thank you! Your advance booking deposit has been cryptographically verified by Razorpay. Our master calligraphy artisans are now preparing your physical frame.'
+              : 'Thank you for placing your order with NAMORA. Please complete the advance booking deposit below to initiate custom calligraphy crafting.'}
           </p>
         </div>
       </div>
@@ -59,17 +108,24 @@ function ConfirmationContent() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-namora-line-soft">
           <div>
             <span className="text-[10px] uppercase font-mono text-namora-muted block">
-              Official Order Number
+              Official Order Reference
             </span>
             <strong className="text-xl font-mono text-namora-gold tracking-wide">
               {orderNumber}
             </strong>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-xs font-mono text-amber-400 bg-amber-950/40 px-2.5 py-1 rounded border border-amber-800/40">
-              Status: Pending Advance Deposit
-            </span>
+            {paymentStatus === 'paid' ? (
+              <span className="text-xs font-mono text-emerald-400 bg-emerald-950/60 px-3 py-1.5 rounded-full border border-emerald-600/40 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                Status: Advance Deposit Verified
+              </span>
+            ) : (
+              <span className="text-xs font-mono text-amber-400 bg-amber-950/40 px-3 py-1.5 rounded-full border border-amber-800/40 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                Status: Pending Advance Deposit
+              </span>
+            )}
           </div>
         </div>
 
@@ -85,12 +141,12 @@ function ConfirmationContent() {
           </div>
           <div className="border-y sm:border-y-0 sm:border-x border-namora-line-soft py-2 sm:py-0">
             <span className="text-[10px] text-emerald-400 uppercase block font-semibold">
-              Online Deposit
+              {paymentStatus === 'paid' ? 'Deposit Paid' : 'Deposit Due Now'}
             </span>
             <strong className="text-sm sm:text-base text-emerald-400">
               {depositAmount}
             </strong>
-            <span className="text-[9px] text-namora-muted block">({frameCount} × ₹49)</span>
+            <span className="text-[9px] text-namora-muted block">({frameCount} × ₹49 booking fee)</span>
           </div>
           <div>
             <span className="text-[10px] text-namora-muted uppercase block">
@@ -102,27 +158,47 @@ function ConfirmationContent() {
           </div>
         </div>
 
-        {/* Phase 9 Payment Handoff Notice */}
-        <div className="p-4 rounded-xl border border-namora-gold/30 bg-namora-gold/5 space-y-2">
-          <div className="flex items-center gap-2 text-xs font-semibold text-namora-gold font-hero">
-            <span>🔒 Secure Razorpay Deposit Payment Gateway</span>
+        {/* Payment Section */}
+        {paymentStatus === 'paid' ? (
+          <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 space-y-2.5 animate-fadeIn">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-emerald-400 font-semibold font-hero flex items-center gap-1.5">
+                <span>🛡️</span> Razorpay Transaction Confirmed
+              </span>
+              {paymentId && (
+                <span className="font-mono text-[11px] text-zinc-400">
+                  ID: {paymentId}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              Your online booking deposit of <strong className="text-emerald-300">{depositAmount}</strong> has been secured. 
+              The balance of <strong className="text-white">{codAmount}</strong> will be collected in cash or UPI by the delivery courier when your physical handmade frame arrives at your doorstep.
+            </p>
+            <div className="pt-1 text-[11px] text-zinc-400 font-mono flex items-center gap-2">
+              <span>Next Step:</span>
+              <span className="text-namora-gold">Artisan Engraving & Framing (1–2 Days)</span>
+            </div>
           </div>
-          <p className="text-xs text-namora-ink-soft leading-relaxed">
-            To initiate custom calligraphy artisan engraving, please complete the ₹49/frame booking deposit.
-            Payment integration is scheduled for activation in Phase 9.
-          </p>
-          <div className="pt-2">
-            <Button
-              variant="primary"
-              fullWidth
-              size="md"
-              onClick={() => alert('Razorpay Deposit Payment execution will be activated in Phase 9.')}
-              className="shadow-luxury font-bold text-xs"
-            >
-              Proceed to Pay {depositAmount} Deposit (Phase 9 Razorpay Handoff) &rarr;
-            </Button>
+        ) : (
+          <div className="p-4 rounded-xl border border-namora-gold/30 bg-namora-gold/5 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-namora-gold font-hero">
+              <span>🔒 Pay Advance Deposit to Begin Handcrafting</span>
+            </div>
+            <p className="text-xs text-namora-ink-soft leading-relaxed">
+              To prevent uncollected custom parcels, each bespoke frame requires a minimal ₹49 booking deposit. 
+              The remaining balance is paid on Cash on Delivery.
+            </p>
+            <RazorpayPaymentButton
+              orderId={orderId}
+              orderNumber={orderNumber}
+              depositAmount={rawDepositAmount}
+              customerName={storedOrder?.customerName}
+              customerPhone={storedOrder?.customerPhone}
+              onSuccess={handlePaymentSuccess}
+            />
           </div>
-        </div>
+        )}
 
         {/* Shipping & Delivery Details */}
         {storedOrder?.address && (
@@ -145,9 +221,9 @@ function ConfirmationContent() {
 
       {/* Actions */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-        <Link href={`/track-order?order=${encodeURIComponent(orderNumber)}`} className="w-full sm:w-auto">
+        <Link href={`/track-order?query=${encodeURIComponent(orderNumber)}`} className="w-full sm:w-auto">
           <Button variant="outline" size="sm" className="w-full sm:w-auto">
-            🔍 Track Order Status
+            🔍 Track Live Production
           </Button>
         </Link>
 
