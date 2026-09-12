@@ -1,0 +1,25 @@
+{
+  "name": "namora",
+  "version": "1.0.0",
+  "description": "NAMORA — Premium Personalized A4 Handmade Wall Frames E-Commerce Platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "namora",
+    "ecommerce",
+    "personalized-gifts",
+    "calligraphy",
+    "frames",
+    "supabase",
+    "razorpay"
+  ],
+  "author": "NAMORA Luxury Decor",
+  "license": "UNLICENSED",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

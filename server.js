@@ -44,6 +44,31 @@ const CONFIG = {
   }
 };
 
+// Valid Order Lifecycle Transitions (Step 2)
+const VALID_ORDER_TRANSITIONS = {
+  'pending_payment': ['confirmed', 'cancelled'],
+  'pending_advance': ['confirmed', 'advance_paid', 'cancelled'],
+  'confirmed': ['processing', 'personalization_review', 'cancelled'],
+  'advance_paid': ['processing', 'personalization_review', 'in_production', 'cancelled'],
+  'processing': ['personalization_review', 'ready_to_ship', 'cancelled'],
+  'in_production': ['ready_to_ship', 'dispatched', 'cancelled'],
+  'personalization_review': ['processing', 'ready_to_ship', 'cancelled'],
+  'ready_to_ship': ['shipped', 'cancelled'],
+  'shipped': ['out_for_delivery', 'delivered', 'returned'],
+  'dispatched': ['out_for_delivery', 'delivered', 'returned'],
+  'out_for_delivery': ['delivered', 'returned'],
+  'delivered': ['returned'],
+  'cancelled': ['processing'], // only allowed for explicit admin correction
+  'returned': []
+};
+
+function isValidTransition(from, to, isAdminOverride = false) {
+  if (isAdminOverride) return true;
+  if (!from || from === to) return true;
+  const allowed = VALID_ORDER_TRANSITIONS[from];
+  return allowed ? allowed.includes(to) : true;
+}
+
 const mimeTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -224,10 +249,15 @@ const server = http.createServer(async (req, res) => {
       let giftTotal = 0.00;
 
       items.forEach(item => {
-        if (item.gift && item.gift.isGift) {
+        if (item.gift && (item.gift.isGift || item.gift === true)) {
+          giftTotal += CONFIG.PRICES.GIFT_PACKAGING;
+        } else if (item.giftPackaging || item.isGift) {
           giftTotal += CONFIG.PRICES.GIFT_PACKAGING;
         }
       });
+      if (giftTotal === 0 && (body.giftPackaging || body.isGift)) {
+        giftTotal = CONFIG.PRICES.GIFT_PACKAGING;
+      }
 
       const subtotal = frameCount * CONFIG.PRICES.FRAME_BASE;
       const totalAmount = subtotal + giftTotal;
@@ -248,9 +278,9 @@ const server = http.createServer(async (req, res) => {
         total_amount: totalAmount,
         deposit_amount: depositAmount,
         cod_amount: codAmount,
-        status: 'pending_advance',
+        status: 'pending_payment',
         payment_method: 'deposit_cod',
-        payment_status: 'unpaid'
+        payment_status: 'pending'
       }]);
 
       let orderId = 'order_' + Date.now();
@@ -470,8 +500,8 @@ const server = http.createServer(async (req, res) => {
 
         // Update Order Status
         await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', {
-          payment_status: 'deposit_received',
-          status: 'advance_paid',
+          payment_status: 'paid',
+          status: 'confirmed',
           razorpay_payment_id: razorpay_payment_id
         }).catch(e => console.warn('Order status patch note:', e));
 
@@ -631,6 +661,277 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ found: false, error: 'Tracking error' }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: POST /api/update-order-status (Lifecycle transitions & audit)
+  // --------------------------------------------------------------------------
+  if (req.method === 'POST' && pathname === '/api/update-order-status') {
+    try {
+      const body = await parseBody(req);
+      const { order_id, new_status, admin_user = 'admin', admin_override = false, notes = '' } = body;
+      if (!order_id || !new_status) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: 'order_id and new_status required' }));
+      }
+
+      const oRes = await supabaseRequest(`orders?id=eq.${order_id}&select=*`);
+      if (oRes.status !== 200 || !oRes.data || !oRes.data[0]) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: 'Order not found' }));
+      }
+      const order = oRes.data[0];
+      const prevStatus = order.status;
+
+      if (!isValidTransition(prevStatus, new_status, admin_override)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          success: false,
+          error: `Invalid transition from "${prevStatus}" to "${new_status}". Allowed next: ${(VALID_ORDER_TRANSITIONS[prevStatus] || []).join(', ') || 'none'}`
+        }));
+      }
+
+      const patchData = { status: new_status };
+      const nowIso = new Date().toISOString();
+      if (new_status === 'shipped' || new_status === 'dispatched') patchData.dispatched_at = nowIso;
+      if (new_status === 'delivered') patchData.delivered_at = nowIso;
+      if (new_status === 'cancelled') patchData.cancelled_at = nowIso;
+
+      await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', patchData);
+
+      // Inventory reversal on cancellation or return
+      if ((new_status === 'cancelled' || new_status === 'returned') && (prevStatus !== 'cancelled' && prevStatus !== 'returned')) {
+        const itmRes = await supabaseRequest(`order_items?order_id=eq.${order_id}&select=*`);
+        if (itmRes.status === 200 && Array.isArray(itmRes.data)) {
+          for (const itm of itmRes.data) {
+            if (itm.is_ready_made && itm.product_id) {
+              const prevStock = inventoryLedger.has(itm.product_id) ? inventoryLedger.get(itm.product_id) : 0;
+              const newQty = prevStock + 1;
+              inventoryLedger.set(itm.product_id, newQty);
+              await supabaseRequest(`products?id=eq.${itm.product_id}`, 'PATCH', { stock_quantity: newQty, in_stock: true }).catch(() => {});
+              await supabaseRequest('inventory_movements', 'POST', [{
+                product_id: itm.product_id,
+                order_id: order_id,
+                order_number: order.order_number,
+                change_quantity: 1,
+                movement_type: new_status === 'cancelled' ? 'cancellation' : 'restock',
+                notes: `Restored stock from order ${order.order_number} (${new_status})`
+              }]).catch(() => {});
+            }
+          }
+        }
+      }
+
+      await supabaseRequest('admin_activity_logs', 'POST', [{
+        admin_user_id: admin_user,
+        action: 'order_status_updated',
+        entity_type: 'orders',
+        entity_id: order_id,
+        metadata: { order_number: order.order_number, from: prevStatus, to: new_status, notes }
+      }]).catch(() => {});
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        order_number: order.order_number,
+        previous_status: prevStatus,
+        status: new_status
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: POST /api/update-checklist (Personalization Production Workflow)
+  // --------------------------------------------------------------------------
+  if (req.method === 'POST' && pathname === '/api/update-checklist') {
+    try {
+      const body = await parseBody(req);
+      const { order_id, checklist = {}, admin_user = 'admin' } = body;
+      if (!order_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: 'order_id required' }));
+      }
+
+      await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', {
+        production_checklist: checklist
+      });
+
+      await supabaseRequest('admin_activity_logs', 'POST', [{
+        admin_user_id: admin_user,
+        action: 'checklist_updated',
+        entity_type: 'orders',
+        entity_id: order_id,
+        metadata: { checklist }
+      }]).catch(() => {});
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, checklist }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: POST /api/save-shipping (Shipping & Courier Management)
+  // --------------------------------------------------------------------------
+  if (req.method === 'POST' && pathname === '/api/save-shipping') {
+    try {
+      const body = await parseBody(req);
+      const { order_id, courier_name = '', tracking_number = '', tracking_url = '', mark_shipped = false, admin_user = 'admin' } = body;
+      if (!order_id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, error: 'order_id required' }));
+      }
+
+      let duplicateWarning = null;
+      if (tracking_number) {
+        const dupRes = await supabaseRequest(`orders?tracking_number=eq.${encodeURIComponent(tracking_number)}&id=neq.${order_id}&select=order_number`);
+        if (dupRes.status === 200 && Array.isArray(dupRes.data) && dupRes.data.length > 0) {
+          duplicateWarning = `Warning: AWB "${tracking_number}" is already attached to order ${dupRes.data[0].order_number}.`;
+        }
+      }
+
+      const patchData = {
+        courier_name: courier_name.trim(),
+        tracking_number: tracking_number.trim(),
+        tracking_url: tracking_url.trim()
+      };
+      if (mark_shipped) {
+        patchData.status = 'shipped';
+        patchData.dispatched_at = new Date().toISOString();
+      }
+
+      await supabaseRequest(`orders?id=eq.${order_id}`, 'PATCH', patchData);
+
+      await supabaseRequest('admin_activity_logs', 'POST', [{
+        admin_user_id: admin_user,
+        action: 'shipping_updated',
+        entity_type: 'orders',
+        entity_id: order_id,
+        metadata: { courier_name, tracking_number, tracking_url, mark_shipped, duplicateWarning }
+      }]).catch(() => {});
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        courier_name,
+        tracking_number,
+        tracking_url,
+        warning: duplicateWarning
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: GET /api/analytics (Admin Dashboard Metrics)
+  // --------------------------------------------------------------------------
+  if (req.method === 'GET' && pathname === '/api/analytics') {
+    try {
+      const timeframe = parsedUrl.searchParams.get('timeframe') || 'all';
+      const oRes = await supabaseRequest('orders?select=*');
+      const allOrders = (oRes.status === 200 && Array.isArray(oRes.data)) ? oRes.data : [];
+
+      const now = new Date();
+      const filtered = allOrders.filter(o => {
+        if (timeframe === 'all') return true;
+        const d = new Date(o.created_at);
+        const diffMs = now - d;
+        if (timeframe === 'today') return diffMs < 24 * 60 * 60 * 1000 && d.getDate() === now.getDate();
+        if (timeframe === '7days') return diffMs <= 7 * 24 * 60 * 60 * 1000;
+        if (timeframe === '30days') return diffMs <= 30 * 24 * 60 * 60 * 1000;
+        if (timeframe === 'year') return d.getFullYear() === now.getFullYear();
+        return true;
+      });
+
+      const validOrders = filtered.filter(o => o.status !== 'cancelled');
+      const totalRevenue = validOrders.reduce((s, o) => s + (parseFloat(o.total_amount) || 0), 0);
+      const depositsCollected = validOrders
+        .filter(o => o.payment_status === 'paid' || o.payment_status === 'deposit_received' || o.status === 'confirmed' || o.status === 'advance_paid' || o.status === 'shipped' || o.status === 'delivered')
+        .reduce((s, o) => s + (parseFloat(o.deposit_amount) || 0), 0);
+      const codOutstanding = validOrders
+        .filter(o => o.status !== 'delivered')
+        .reduce((s, o) => s + (parseFloat(o.cod_amount) || 0), 0);
+      const aov = validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
+
+      const statusCounts = {};
+      filtered.forEach(o => {
+        statusCounts[o.status] = (statusCounts[o.status] || 0) + 1;
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        timeframe,
+        total_orders: filtered.length,
+        active_orders: validOrders.length,
+        total_revenue: Math.round(totalRevenue),
+        deposits_collected: Math.round(depositsCollected),
+        cod_outstanding: Math.round(codOutstanding),
+        average_order_value: aov,
+        status_counts: statusCounts
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: GET /api/customers (Admin Customer Management)
+  // --------------------------------------------------------------------------
+  if (req.method === 'GET' && pathname === '/api/customers') {
+    try {
+      const cRes = await supabaseRequest('customers?select=*&order=total_spent.desc&limit=100');
+      const customers = (cRes.status === 200 && Array.isArray(cRes.data)) ? cRes.data : [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, customers }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: GET /api/reviews & POST /api/admin/reviews (Review System)
+  // --------------------------------------------------------------------------
+  if (req.method === 'GET' && pathname === '/api/reviews') {
+    try {
+      const rRes = await supabaseRequest('reviews?status=eq.approved&order=created_at.desc&limit=20');
+      const reviews = (rRes.status === 200 && Array.isArray(rRes.data)) ? rRes.data : [];
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, reviews }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
+  }
+
+  if (req.method === 'POST' && pathname === '/api/admin/reviews') {
+    try {
+      const body = await parseBody(req);
+      const { action, review_id, status } = body;
+      if (action === 'delete' && review_id) {
+        await supabaseRequest(`reviews?id=eq.${review_id}`, 'DELETE');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, deleted: review_id }));
+      } else if (action === 'moderate' && review_id && status) {
+        await supabaseRequest(`reviews?id=eq.${review_id}`, 'PATCH', { status });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, review_id, status }));
+      }
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: 'Invalid review action' }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
     }
   }
 
