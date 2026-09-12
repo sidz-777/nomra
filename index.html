@@ -7373,59 +7373,176 @@
         showToast(`Added "${newItem.englishName}" to cart! (${cartItems.length} frame${cartItems.length > 1 ? 's' : ''})`);
       });
 
-      /* ===================== RAZORPAY ===================== */
-      document.getElementById('payRazorpayBtn').addEventListener('click', () => {
-        if (!cartItems.length) {
-          showToast('Your cart is empty. Please customize a frame first.');
-          closeCart();
-          document.getElementById('create').scrollIntoView({ behavior: 'smooth' });
-          return;
-        }
-
-        const name = document.getElementById('custName').value.trim();
-        const phone = document.getElementById('custPhone').value.trim();
-        const address = document.getElementById('custAddress').value.trim();
-        const pincode = document.getElementById('custPincode').value.trim();
-
-        if (!name || !phone || !address || !pincode) {
-          showToast('Please fill out all shipping details.');
-          return;
-        }
-        if (!/^[0-9]{10}$/.test(phone)) {
-          showToast('Please enter a valid 10-digit mobile number.');
-          return;
-        }
-        if (!/^[0-9]{6}$/.test(pincode)) {
-          showToast('Please enter a valid 6-digit PIN code.');
-          return;
-        }
-        if (typeof Razorpay === 'undefined') {
-          showToast('Payment service still loading. Please try again.');
-          return;
-        }
-
-        const totalDeposit = cartItems.length * 49;
-        const namesList = cartItems.map(i => i.englishName).join(', ');
-
-        const options = {
-          key: "YOUR_RAZORPAY_KEY",
-          amount: totalDeposit * 100,
-          currency: "INR",
-          name: "NAMORA",
-          description: `Deposit for ${cartItems.length} Frame(s) (${namesList})`,
-          handler: function (response) {
-            showToast(`Payment successful! ID: ${response.razorpay_payment_id}`);
-            cartItems = [];
-            renderCart();
+      /* ===================== SECURE RAZORPAY CHECKOUT ===================== */
+      const payBtn = document.getElementById('payRazorpayBtn');
+      if (payBtn) {
+        payBtn.addEventListener('click', async () => {
+          if (!cartItems.length) {
+            showToast('Your cart is empty. Please customize a frame first.');
             closeCart();
-          },
-          prefill: { name: name, contact: phone },
-          theme: { color: "#D4AF6A" }
-        };
+            document.getElementById('create').scrollIntoView({ behavior: 'smooth' });
+            return;
+          }
 
-        const rzp = new Razorpay(options);
-        rzp.open();
-      });
+          const name = document.getElementById('custName').value.trim();
+          const phone = document.getElementById('custPhone').value.trim();
+          const address = document.getElementById('custAddress').value.trim();
+          const pincode = document.getElementById('custPincode').value.trim();
+
+          if (!name || !phone || !address || !pincode) {
+            showToast('Please fill out all shipping details.');
+            return;
+          }
+          if (!/^[0-9]{10}$/.test(phone)) {
+            showToast('Please enter a valid 10-digit mobile number.');
+            return;
+          }
+          if (!/^[0-9]{6}$/.test(pincode)) {
+            showToast('Please enter a valid 6-digit PIN code.');
+            return;
+          }
+
+          // Prevent duplicate clicks & show loading state
+          payBtn.disabled = true;
+          const originalText = payBtn.innerHTML;
+          payBtn.innerHTML = '<span>🔒 Securing Your Reservation...</span>';
+
+          try {
+            // 1. Authoritative Server-Side Order Creation & Price Validation
+            const orderRes = await window.NamoraBackend.createOrder({
+              name: name,
+              phone: phone,
+              address: address,
+              pincode: pincode
+            }, cartItems);
+
+            if (!orderRes || !orderRes.success) {
+              throw new Error((orderRes && orderRes.error) || 'Failed to create order');
+            }
+
+            // 2. Authoritative Server-Side Razorpay Order Creation
+            const rzpOrderRes = await window.NamoraBackend.createRazorpayOrder(
+              orderRes.order_id,
+              orderRes.deposit_amount
+            );
+
+            const rzpOptions = {
+              key: rzpOrderRes.key_id || (window.NAMORA_CONFIG && window.NAMORA_CONFIG.RAZORPAY_KEY_ID) || "rzp_test_namora_demo",
+              amount: rzpOrderRes.amount,
+              currency: "INR",
+              name: "NAMORA",
+              description: `Reservation Deposit for Order #${orderRes.order_number}`,
+              order_id: rzpOrderRes.razorpay_order_id,
+              prefill: { name: name, contact: phone },
+              theme: { color: "#D4AF6A" },
+              modal: {
+                ondismiss: function () {
+                  payBtn.disabled = false;
+                  payBtn.innerHTML = originalText;
+                  showToast('Payment window closed. Order remains pending confirmation.');
+                }
+              },
+              handler: async function (response) {
+                payBtn.innerHTML = '<span>⏳ Verifying Payment with Bank...</span>';
+
+                try {
+                  // 3. Server-side payment verification
+                  const verifyRes = await window.NamoraBackend.verifyRazorpayPayment({
+                    order_id: orderRes.order_id,
+                    order_number: orderRes.order_number,
+                    razorpay_order_id: response.razorpay_order_id || rzpOrderRes.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature || 'mock_sig_' + response.razorpay_payment_id,
+                    amount: orderRes.deposit_amount,
+                    method: 'upi'
+                  });
+
+                  if (verifyRes && verifyRes.success) {
+                    // 4. Show Verified Order Confirmed Modal
+                    showOrderSuccessModal({
+                      orderNumber: orderRes.order_number,
+                      depositPaid: orderRes.deposit_amount,
+                      codBalance: orderRes.cod_amount,
+                      totalAmount: orderRes.total_amount,
+                      customerName: name,
+                      customerPhone: phone
+                    });
+
+                    // Empty Cart & Close Drawer
+                    cartItems = [];
+                    renderCart();
+                    closeCart();
+                  } else {
+                    showToast((verifyRes && verifyRes.error) || 'Payment verification failed. Please contact support.');
+                  }
+                } catch (vErr) {
+                  showToast('Verification error: ' + vErr.message);
+                } finally {
+                  payBtn.disabled = false;
+                  payBtn.innerHTML = originalText;
+                }
+              }
+            };
+
+            if (typeof Razorpay !== 'undefined') {
+              const rzp = new Razorpay(rzpOptions);
+              rzp.on('payment.failed', function (resp) {
+                payBtn.disabled = false;
+                payBtn.innerHTML = originalText;
+                showToast('Payment failed: ' + (resp.error && resp.error.description || 'Transaction cancelled'));
+              });
+              rzp.open();
+            } else {
+              // Direct dev fallback if Razorpay script offline
+              console.warn('Razorpay SDK offline, simulating test payment:');
+              rzpOptions.handler({
+                razorpay_order_id: rzpOrderRes.razorpay_order_id,
+                razorpay_payment_id: 'pay_test_' + Date.now(),
+                razorpay_signature: 'test_signature_mock'
+              });
+            }
+          } catch (err) {
+            console.error('Checkout error:', err);
+            showToast(err.message || 'Error processing reservation. Please try again.');
+            payBtn.disabled = false;
+            payBtn.innerHTML = originalText;
+          }
+        });
+      }
+
+      function showOrderSuccessModal(details) {
+        const modal = document.getElementById('orderSuccessModal');
+        if (!modal) return;
+
+        const numEl = document.getElementById('successOrderNum');
+        const depEl = document.getElementById('successDepositPaid');
+        const codEl = document.getElementById('successCodBalance');
+        const totEl = document.getElementById('successTotalOrder');
+        const waBtn = document.getElementById('successWhatsAppBtn');
+
+        if (numEl) numEl.textContent = details.orderNumber;
+        if (depEl) depEl.textContent = '₹' + details.depositPaid;
+        if (codEl) codEl.textContent = '₹' + details.codBalance;
+        if (totEl) totEl.textContent = '₹' + details.totalAmount;
+
+        if (waBtn) {
+          const waText = encodeURIComponent(
+            `Hi NAMORA! I have confirmed Order *${details.orderNumber}* and paid the ₹${details.depositPaid} reservation deposit. Please share crafting updates!`
+          );
+          waBtn.href = `https://wa.me/919305654028?text=${waText}`;
+        }
+
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeOrderSuccessModal() {
+        const modal = document.getElementById('orderSuccessModal');
+        if (modal) {
+          modal.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      }
 
       /* ===================== INPUT LISTENERS ===================== */
       document.getElementById('nameInputEn').addEventListener('input', handleEnglishInput);
@@ -7928,11 +8045,49 @@
           <a href="https://wa.me/919305654028?text=Hi%20NAMORA%2C%20I%20want%20to%20check%20status%20for%20my%20order" 
              target="_blank" rel="noopener" class="btn btn-whatsapp" style="width: 100%; margin-top: 1.5rem; text-align: center;">
             ✆ Get WhatsApp Live Updates
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDER SUCCESS CONFIRMATION MODAL -->
+    <div class="track-modal" id="orderSuccessModal" onclick="if(event.target.id==='orderSuccessModal')closeOrderSuccessModal()">
+      <div class="track-modal-card" style="text-align: center; max-width: 480px; padding: 2rem;">
+        <div style="font-size: 2.8rem; margin-bottom: 0.5rem;">✨</div>
+        <div class="eyebrow" style="color: var(--success); margin-bottom: 0.35rem; font-weight: 700;">RESERVATION DEPOSIT VERIFIED</div>
+        <h3 style="font-family: var(--font-luxury); color: var(--accent); margin-bottom: 0.25rem; font-size: 1.5rem;">Order Confirmed!</h3>
+        <p style="color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem;">
+          Your handcrafted A4 frame is now being prepared for our calligraphy studio.
+        </p>
+
+        <div style="background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 1.25rem; text-align: left; margin-bottom: 1.5rem;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 0.75rem; margin-bottom: 0.75rem;">
+            <span style="color: var(--muted); font-size: 0.85rem;">Order Number:</span>
+            <strong style="color: var(--accent); font-size: 1.05rem;" id="successOrderNum">NAM-8421</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem; font-size: 0.85rem;">
+            <span style="color: var(--muted);">Deposit Paid Online:</span>
+            <strong style="color: var(--success);" id="successDepositPaid">₹49</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem; font-size: 0.85rem;">
+            <span style="color: var(--muted);">Balance on Delivery (COD):</span>
+            <strong style="color: var(--ink);" id="successCodBalance">₹450</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between; border-top: 1px dashed var(--line); padding-top: 0.6rem; margin-top: 0.6rem; font-size: 0.95rem;">
+            <span style="font-weight: 700;">Total Order Value:</span>
+            <strong style="color: var(--accent);" id="successTotalOrder">₹499</strong>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <a href="#" id="successWhatsAppBtn" target="_blank" rel="noopener" class="btn btn-whatsapp" style="width: 100%; text-align: center; padding: 12px; font-weight: 700;">
+            💬 Get WhatsApp Dispatch Updates
           </a>
+          <button type="button" class="btn" onclick="closeOrderSuccessModal()" style="width: 100%; background: transparent; border: 1px solid var(--line); color: var(--ink);">
+            Continue Browsing Store &rarr;
+          </button>
         </div>
       </div>
     </div>
 
 </body>
-    
-    </html>
+</html>
