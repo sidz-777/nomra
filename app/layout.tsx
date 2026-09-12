@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Playfair_Display, Cinzel, Amiri } from 'next/font/google';
+import { Playfair_Display, Cinzel, Amiri, Reem_Kufi } from 'next/font/google';
 import './globals.css';
 
 const playfair = Playfair_Display({
@@ -18,6 +18,13 @@ const amiri = Amiri({
   subsets: ['arabic', 'latin'],
   weight: ['400', '700'],
   variable: '--font-amiri',
+  display: 'swap',
+});
+
+const reemKufi = Reem_Kufi({
+  subsets: ['arabic', 'latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-reem-kufi',
   display: 'swap',
 });
 
@@ -47,15 +54,22 @@ export const viewport: Viewport = {
   themeColor: '#141210',
 };
 
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${playfair.variable} ${cinzel.variable} ${amiri.variable}`}>
+    <html
+      lang="en"
+      className={`${playfair.variable} ${cinzel.variable} ${amiri.variable} ${reemKufi.variable}`}
+      data-theme="dark"
+      suppressHydrationWarning
+    >
       <body className="bg-namora-bg text-namora-ink antialiased min-h-screen">
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

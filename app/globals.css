@@ -2,35 +2,99 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root,
+[data-theme="dark"] {
+  /* Surface & Canvas Tokens */
   --bg: #141210;
   --bg-soft: #1C1917;
   --card: #1E1B18;
+  --card-muted: #231F1C;
+
+  /* Typography & Foreground Tokens */
   --ink: #F2EBDD;
   --ink-soft: #D9CFBC;
   --muted: #9B8E7A;
+
+  /* Structural Borders */
   --line: #3A322A;
   --line-soft: #2A241D;
+
+  /* Signature Accents */
   --accent: #D4AF6A;
   --accent-hover: #E6C585;
+  --accent-soft: rgba(212, 175, 106, 0.12);
+
+  /* Status Colors */
   --success: #8FA878;
-  --gold: #D4AF6A;
+  --warning: #E0A852;
+  --error: #D96B6B;
+  --overlay: rgba(0, 0, 0, 0.75);
+
+  /* Shadows */
+  --shadow-subtle: 0 4px 15px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 8px 25px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 12px 35px rgba(0, 0, 0, 0.5);
+  --shadow-luxury: 0 18px 45px rgba(0, 0, 0, 0.6);
+
+  /* Border Radii */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+
+  /* Motion */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --ease-luxury: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="light"],
 .light-mode {
+  /* Surface & Canvas Tokens */
   --bg: #F6F2EA;
   --bg-soft: #EFE9DD;
   --card: #FFFDF8;
+  --card-muted: #E8E1D2;
+
+  /* Typography & Foreground Tokens */
   --ink: #211E19;
   --ink-soft: #3A342B;
   --muted: #756F65;
+
+  /* Structural Borders */
   --line: #DED6C8;
   --line-soft: #EAE3D4;
+
+  /* Signature Accents */
   --accent: #8C6A3B;
   --accent-hover: #6F512B;
+  --accent-soft: rgba(140, 106, 59, 0.12);
+
+  /* Status Colors */
   --success: #5F6B4A;
-  --gold: #B3945B;
+  --warning: #B47D28;
+  --error: #B83A3A;
+  --overlay: rgba(33, 30, 25, 0.45);
+
+  /* Shadows */
+  --shadow-subtle: 0 4px 15px rgba(33, 30, 25, 0.04);
+  --shadow-card: 0 8px 25px rgba(33, 30, 25, 0.06);
+  --shadow-elevated: 0 12px 35px rgba(33, 30, 25, 0.08);
+  --shadow-luxury: 0 18px 45px rgba(33, 30, 25, 0.12);
+}
+
+/* Global Reset & Base Styles */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
@@ -40,5 +104,39 @@ body {
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  -webkit-font-smoothing: antialiased;
+  transition: background-color var(--duration-normal) var(--ease-luxury),
+              color var(--duration-normal) var(--ease-luxury);
+}
+
+/* Accessible Focus States */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* RTL & Arabic Typography Utilities */
+.font-arabic {
+  font-family: var(--font-amiri), serif;
+}
+
+.font-arabic-display {
+  font-family: var(--font-reem-kufi), sans-serif;
+}
+
+[dir="rtl"],
+.rtl-text {
+  direction: rtl;
+  text-align: right;
+}
+
+/* Motion Preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
