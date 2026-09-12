@@ -26,6 +26,7 @@ import { FinishSelector } from './FinishSelector';
 import { CustomizationOptions } from './CustomizationOptions';
 import { FramePreview } from './FramePreview';
 import { CustomizerSummary } from './CustomizerSummary';
+import { useCart } from '@/components/cart';
 
 export interface PersonalizationStudioProps {
   initialDesignId?: string;
@@ -67,6 +68,8 @@ export function PersonalizationStudio({
     pincode: '',
     pincodeStatus: 'idle',
   });
+
+  const cart = useCart();
 
   // Inline Validation Errors
   const [errors, setErrors] = useState<{
@@ -217,6 +220,13 @@ export function PersonalizationStudio({
       return;
     }
 
+    // Add personalized item to cart
+    cart.addPersonalizedItem({
+      design: state.activeDesign,
+      customization: state,
+      gift: state.gift,
+    });
+
     // Call optional parent handler or show success feedback
     if (onAddToCartSuccess) {
       onAddToCartSuccess(state);
@@ -225,7 +235,7 @@ export function PersonalizationStudio({
     setToast({
       isVisible: true,
       type: 'success',
-      message: `✓ Custom ${state.activeDesign.title} (${state.englishName}) ready for cart!`,
+      message: `✓ Added "${state.englishName}" (${state.activeDesign.title}) to cart!`,
     });
   };
 

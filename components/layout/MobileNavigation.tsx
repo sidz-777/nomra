@@ -58,6 +58,19 @@ export function MobileNavigation({ isOpen, onClose, onCartClick }: MobileNavigat
 
         {/* Action & Concierge Section */}
         <div className="pt-4 space-y-3">
+          {onCartClick && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onCartClick();
+              }}
+              className="w-full py-2.5 px-4 rounded-md border border-namora-line bg-namora-soft text-namora-ink hover:text-namora-gold hover:border-namora-gold transition text-xs font-medium flex items-center justify-center gap-2"
+            >
+              <span>🛒 View Shopping Cart</span>
+            </button>
+          )}
+
           <Link href="#create" onClick={onClose} className="block">
             <Button variant="primary" fullWidth size="md">
               Customize Frame Now

@@ -1,8 +1,10 @@
+'use client';
+
 import React from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { Card, Badge, PriceDisplay, Button } from '@/components/ui';
 import { ReadyStockItem } from '@/lib/storefront-data';
+import { useCart } from '@/components/cart';
 
 interface ReadyStockCardProps {
   product: ReadyStockItem;
@@ -10,6 +12,8 @@ interface ReadyStockCardProps {
 }
 
 export function ReadyStockCard({ product, priority = false }: ReadyStockCardProps) {
+  const { addReadyStockItem } = useCart();
+
   const badgeVariant =
     product.tagClass === 'gold' ? 'gold' : product.tagClass === 'popular' ? 'warning' : 'default';
 
@@ -63,11 +67,14 @@ export function ReadyStockCard({ product, priority = false }: ReadyStockCardProp
             size="sm"
           />
 
-          <Link href="#create">
-            <Button variant="primary" size="sm">
-              Quick Order
-            </Button>
-          </Link>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => addReadyStockItem(product)}
+            className="shadow-sm font-medium"
+          >
+            Add to Cart 🛒
+          </Button>
         </div>
       </div>
     </Card>

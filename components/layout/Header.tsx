@@ -6,14 +6,19 @@ import { Container } from './Container';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { MobileNavigation } from './MobileNavigation';
 import { NAV_LINKS } from '@/lib/storefront-data';
+import { useCart } from '@/components/cart';
 
 interface HeaderProps {
   cartCount?: number;
   onCartClick?: () => void;
 }
 
-export function Header({ cartCount = 0, onCartClick }: HeaderProps) {
+export function Header({ cartCount, onCartClick }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { totals, toggleCart, isHydrated } = useCart();
+
+  const displayCount = cartCount !== undefined ? cartCount : (isHydrated ? totals.totalFrames : 0);
+  const handleCartClick = onCartClick || (() => toggleCart(true));
 
   return (
     <>
@@ -45,13 +50,13 @@ export function Header({ cartCount = 0, onCartClick }: HeaderProps) {
             {/* Cart Trigger */}
             <button
               type="button"
-              onClick={onCartClick || (() => alert('Cart drawer will be integrated in Phase 7'))}
-              aria-label="Shopping Cart"
+              onClick={handleCartClick}
+              aria-label={`Shopping Cart with ${displayCount} items`}
               className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-namora-line bg-namora-soft/80 text-namora-ink hover:border-namora-gold hover:text-namora-gold transition text-xs font-medium"
             >
               <span>Cart</span>
-              <span className="w-5 h-5 rounded-full bg-namora-gold text-black font-mono text-[10px] font-bold flex items-center justify-center">
-                {cartCount}
+              <span className="w-5 h-5 rounded-full bg-namora-gold text-black font-mono text-[10px] font-bold flex items-center justify-center transition-transform active:scale-90">
+                {displayCount}
               </span>
             </button>
 
@@ -77,7 +82,7 @@ export function Header({ cartCount = 0, onCartClick }: HeaderProps) {
       <MobileNavigation
         isOpen={mobileMenuOpen}
         onClose={() => setMobileMenuOpen(false)}
-        onCartClick={onCartClick}
+        onCartClick={handleCartClick}
       />
     </>
   );

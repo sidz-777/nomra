@@ -19,3 +19,6 @@ Thumbs.db
 out/
 next-env.d.ts
 *.tsbuildinfo
+
+# Scratch & Temporary Verification Scripts
+scratch/
