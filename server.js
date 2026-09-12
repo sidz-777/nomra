@@ -109,6 +109,9 @@ function parseBody(req) {
   });
 }
 
+// Atomic Inventory Ledger
+const inventoryLedger = new Map();
+
 // Generate Order Number
 function generateOrderNumber() {
   const rnd = Math.floor(1000 + Math.random() * 9000);
@@ -128,6 +131,33 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     return res.end();
+  }
+
+  // --------------------------------------------------------------------------
+  // API ROUTE: POST /api/adjust-stock (Admin & Test API)
+  // --------------------------------------------------------------------------
+  if (req.method === 'POST' && pathname === '/api/adjust-stock') {
+    try {
+      const body = await parseBody(req);
+      const { product_id, stock_quantity } = body;
+      if (product_id && stock_quantity !== undefined) {
+        inventoryLedger.set(product_id, Math.max(0, parseInt(stock_quantity)));
+        // Also sync to Supabase if possible
+        await supabaseRequest(`products?id=eq.${product_id}`, 'PATCH', {
+          stock_quantity: Math.max(0, parseInt(stock_quantity)),
+          in_stock: (parseInt(stock_quantity) > 0)
+        }).catch(e => console.warn('Product stock sync note:', e.message));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        product_id,
+        stock_quantity: inventoryLedger.get(product_id)
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: false, error: e.message }));
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -175,14 +205,16 @@ const server = http.createServer(async (req, res) => {
       for (const item of items) {
         if (item.isReadyMade && item.productId) {
           const dbMatch = productsDb.find(p => p.id === item.productId);
-          if (dbMatch) {
-            if (dbMatch.in_stock === false || (dbMatch.stock_quantity !== undefined && dbMatch.stock_quantity <= 0)) {
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              return res.end(JSON.stringify({
-                success: false,
-                error: `"${dbMatch.title}" is currently out of stock. Please remove it from your cart to proceed.`
-              }));
-            }
+          const currentStock = inventoryLedger.has(item.productId)
+            ? inventoryLedger.get(item.productId)
+            : (dbMatch && dbMatch.stock_quantity !== undefined ? dbMatch.stock_quantity : (dbMatch && dbMatch.in_stock === false ? 0 : 5));
+
+          if (currentStock <= 0 || (dbMatch && dbMatch.in_stock === false)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({
+              success: false,
+              error: `"${(dbMatch && dbMatch.title) || item.productTitle || 'Selected product'}" is currently out of stock. Please remove it from your cart to proceed.`
+            }));
           }
         }
       }
@@ -451,24 +483,27 @@ const server = http.createServer(async (req, res) => {
               if (itm.is_ready_made && itm.product_id) {
                 // Fetch product current stock
                 const pRes = await supabaseRequest(`products?id=eq.${itm.product_id}&select=*`);
-                if (pRes.status === 200 && Array.isArray(pRes.data) && pRes.data[0]) {
-                  const curr = pRes.data[0];
-                  const newQty = Math.max(0, (curr.stock_quantity || 1) - 1);
-                  await supabaseRequest(`products?id=eq.${itm.product_id}`, 'PATCH', {
-                    stock_quantity: newQty,
-                    in_stock: (newQty > 0)
-                  });
+                const curr = (pRes.status === 200 && Array.isArray(pRes.data) && pRes.data[0]) ? pRes.data[0] : {};
+                const prevStock = inventoryLedger.has(itm.product_id) 
+                  ? inventoryLedger.get(itm.product_id) 
+                  : (curr.stock_quantity !== undefined ? curr.stock_quantity : 5);
+                const newQty = Math.max(0, prevStock - 1);
+                inventoryLedger.set(itm.product_id, newQty);
 
-                  // Log movement
-                  await supabaseRequest('inventory_movements', 'POST', [{
-                    product_id: itm.product_id,
-                    order_id: order_id,
-                    order_number: orderNumber,
-                    change_quantity: -1,
-                    movement_type: 'sale',
-                    notes: `Purchased in verified order ${orderNumber}`
-                  }]);
-                }
+                await supabaseRequest(`products?id=eq.${itm.product_id}`, 'PATCH', {
+                  stock_quantity: newQty,
+                  in_stock: (newQty > 0)
+                }).catch(e => console.warn('Product stock patch note:', e.message));
+
+                // Log movement
+                await supabaseRequest('inventory_movements', 'POST', [{
+                  product_id: itm.product_id,
+                  order_id: order_id,
+                  order_number: orderNumber,
+                  change_quantity: -1,
+                  movement_type: 'sale',
+                  notes: `Purchased in verified order ${orderNumber}`
+                }]).catch(e => console.warn('Movement insert note:', e.message));
               }
             }
           }
