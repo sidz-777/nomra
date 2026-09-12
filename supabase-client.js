@@ -28,6 +28,11 @@
     return null;
   }
 
+  function getApiUrl(endpoint) {
+    const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+    return `${origin}${endpoint}`;
+  }
+
   function generateOrderNumber() {
     const randomDigits = Math.floor(1000 + Math.random() * 9000);
     return 'NAM-' + randomDigits;
@@ -42,7 +47,7 @@
   async function createOrder(customer, items) {
     try {
       // 1. Try Backend API first (validates prices, gift, deposit, and stock on server)
-      const res = await fetch('/api/create-order', {
+      const res = await fetch(getApiUrl('/api/create-order'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer, items })
@@ -107,7 +112,7 @@
    */
   async function createRazorpayOrder(orderId, depositAmount) {
     try {
-      const res = await fetch('/api/create-razorpay-order', {
+      const res = await fetch(getApiUrl('/api/create-razorpay-order'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ order_id: orderId, deposit_amount: depositAmount })
@@ -138,7 +143,7 @@
    */
   async function verifyRazorpayPayment(paymentData) {
     try {
-      const res = await fetch('/api/verify-payment', {
+      const res = await fetch(getApiUrl('/api/verify-payment'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(paymentData)
@@ -165,7 +170,7 @@
 
     try {
       // 1. Try Backend API
-      const res = await fetch('/api/track-order', {
+      const res = await fetch(getApiUrl('/api/track-order'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: cleanQuery })

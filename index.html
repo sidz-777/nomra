@@ -5092,6 +5092,9 @@
                   <span class="dispatch-carrier-icon">🚚</span>
                   <span>Free Express Air Delivery via Bluedart / Delhivery</span>
                 </div>
+                <div style="font-size: 0.69rem; color: var(--muted); text-align: center; margin-top: 5px; font-style: italic;">
+                  * Delivery availability and ETA will be confirmed after order verification.
+                </div>
 
                 <div class="pincode-checker">
                   <div class="pincode-input-wrap">
@@ -7700,6 +7703,7 @@
             <div>🟢 <strong>Free Express Air Delivery to ${info.city} (${cleaned})</strong></div>
             <div class="pincode-meta-row">Expected arrival: <strong>${dateStr}</strong> · Bluedart / Delhivery Air</div>
             <div class="pincode-meta-row" style="color: var(--accent);">✓ COD Available (₹49 advance to reserve, ₹450 on delivery)</div>
+            <div class="pincode-meta-row" style="font-size: 0.71rem; color: var(--muted); font-style: italic; margin-top: 4px;">* Delivery availability and ETA will be confirmed after order verification.</div>
           </div>
         `;
 
@@ -7737,14 +7741,6 @@
         }
       }
 
-      function fillDemoTracking() {
-        const input = document.getElementById('trackQueryInput');
-        if (input) {
-          input.value = 'NAM-8421';
-          submitOrderTracking();
-        }
-      }
-
       async function submitOrderTracking() {
         const input = document.getElementById('trackQueryInput');
         const query = input ? input.value.trim() : '';
@@ -7756,72 +7752,227 @@
           return;
         }
 
-        const titleEl = document.getElementById('trackOrderTitle');
-        const subEl = document.getElementById('trackOrderSubtitle');
-        const pillEl = document.getElementById('trackStatusPill');
-
-        // Check live order from Supabase
-        if (window.NamoraBackend && window.NamoraBackend.trackOrder) {
-          try {
-            const res = await window.NamoraBackend.trackOrder(query);
-            if (res && res.found && res.order) {
-              const o = res.order;
-              if (titleEl) titleEl.textContent = 'Order #' + o.order_number;
-              if (subEl) {
-                const itemSummary = res.items && res.items.length
-                  ? res.items.map(i => i.englishName || i.product_title).join(', ')
-                  : 'A4 Handmade Frame';
-                subEl.textContent = `${o.customer_name} · ${itemSummary}`;
-              }
-              
-              // Status mappings
-              const statusLabels = {
-                pending_advance: 'Awaiting ₹49 Deposit',
-                advance_paid: 'Advance Confirmed',
-                in_production: 'In Calligraphy Studio',
-                dispatched: 'Dispatched with Courier',
-                delivered: 'Delivered',
-                cancelled: 'Cancelled'
-              };
-
-              if (pillEl) {
-                pillEl.textContent = statusLabels[o.status] || o.status;
-              }
-
-              // Update Stepper visually
-              const steps = document.querySelectorAll('.track-step');
-              const stepIndexMap = {
-                pending_advance: 0,
-                advance_paid: 1,
-                in_production: 2,
-                dispatched: 3,
-                delivered: 4,
-                cancelled: 0
-              };
-              const activeIndex = stepIndexMap[o.status] !== undefined ? stepIndexMap[o.status] : 1;
-              steps.forEach((step, idx) => {
-                if (idx <= activeIndex) {
-                  step.classList.add('active');
-                } else {
-                  step.classList.remove('active');
-                }
-              });
-
-              resultBox.classList.add('active');
-              showToast('Live order status retrieved from NAMORA database!');
-              return;
-            }
-          } catch (e) {
-            console.warn('Backend tracking lookup note:', e);
-          }
-        }
-
-        // Demo / fallback status
-        const orderNum = query.toUpperCase().startsWith('NAM-') ? query.toUpperCase() : 'NAM-' + (query.slice(-4) || '8421');
-        if (titleEl) titleEl.textContent = 'Order #' + orderNum;
-        if (subEl) subEl.textContent = 'A4 Handmade Matte Black Wall Frame · Free Transit Guarantee';
+        resultBox.style.display = 'block';
         resultBox.classList.add('active');
-        showToast('Tracking status loaded!');
+        resultBox.innerHTML = `
+          <div style="text-align: center; padding: 2rem 1rem; color: var(--muted);">
+            <div style="font-size: 1.5rem; margin-bottom: 0.5rem; animation: pulse 1s infinite;">🔍</div>
+            <div style="font-size: 0.85rem;">Searching live NAMORA dispatch records...</div>
+          </div>
+        `;
+
+        try {
+          let res = null;
+          if (window.NamoraBackend && window.NamoraBackend.trackOrder) {
+            res = await window.NamoraBackend.trackOrder(query);
+          } else {
+            const apiRes = await fetch('/api/track-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ query })
+            });
+            res = await apiRes.json();
+          }
+
+          if (!res || !res.found || !res.order) {
+            resultBox.innerHTML = `
+              <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-md); padding: 1.5rem 1rem; text-align: center; color: #FCA5A5; margin-top: 0.5rem;">
+                <div style="font-size: 1.8rem; margin-bottom: 0.4rem;">🔍</div>
+                <div style="font-weight: 700; font-size: 0.95rem; color: #F87171; margin-bottom: 0.3rem;">Order Not Found</div>
+                <div style="font-size: 0.82rem; color: var(--muted); max-width: 320px; margin: 0 auto 1.25rem;">
+                  We couldn't locate an active order matching "<strong>${escapeHtml(query)}</strong>". Please double check your order number (e.g. NAM-1234) or 10-digit mobile number.
+                </div>
+                <a href="https://wa.me/919305654028?text=Hi%20NAMORA%2C%20I%20need%20help%20tracking%20my%20order%20for%20${encodeURIComponent(query)}" target="_blank" rel="noopener" class="btn btn-whatsapp" style="display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; padding: 8px 16px;">
+                  💬 Inquire via WhatsApp Concierge
+                </a>
+              </div>
+            `;
+            return;
+          }
+
+          const o = res.order;
+          const items = res.items || [];
+
+          // Status definitions & milestone progress index
+          const statusMap = {
+            'pending_payment': { label: 'Awaiting ₹49 Deposit', color: '#FBBF24', bg: 'rgba(251, 191, 36, 0.15)', step: 0 },
+            'pending_advance': { label: 'Awaiting ₹49 Deposit', color: '#FBBF24', bg: 'rgba(251, 191, 36, 0.15)', step: 0 },
+            'confirmed': { label: 'Confirmed & Deposit Paid', color: '#A3E635', bg: 'rgba(163, 230, 53, 0.15)', step: 1 },
+            'advance_paid': { label: 'Confirmed & Deposit Paid', color: '#A3E635', bg: 'rgba(163, 230, 53, 0.15)', step: 1 },
+            'processing': { label: 'In Calligraphy Studio', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.15)', step: 2 },
+            'in_production': { label: 'In Calligraphy Studio', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.15)', step: 2 },
+            'personalization_review': { label: 'Calligraphy Review', color: '#C084FC', bg: 'rgba(192, 132, 252, 0.15)', step: 2 },
+            'ready_to_ship': { label: 'Packed & Quality Verified', color: '#34D399', bg: 'rgba(52, 211, 153, 0.15)', step: 3 },
+            'shipped': { label: 'Dispatched with Courier', color: '#D4AF6A', bg: 'rgba(212, 175, 106, 0.15)', step: 4 },
+            'dispatched': { label: 'Dispatched with Courier', color: '#D4AF6A', bg: 'rgba(212, 175, 106, 0.15)', step: 4 },
+            'out_for_delivery': { label: 'Out for Delivery Today', color: '#FB923C', bg: 'rgba(251, 146, 60, 0.15)', step: 5 },
+            'delivered': { label: 'Delivered & Completed', color: '#4ADE80', bg: 'rgba(74, 222, 128, 0.15)', step: 6 },
+            'cancelled': { label: 'Order Cancelled', color: '#F87171', bg: 'rgba(248, 113, 113, 0.15)', step: -1 },
+            'returned': { label: 'Returned to Studio', color: '#9CA3AF', bg: 'rgba(156, 163, 175, 0.15)', step: -2 }
+          };
+
+          const s = statusMap[o.status] || { label: o.status, color: '#A3E635', bg: 'rgba(163, 230, 53, 0.15)', step: 1 };
+          const activeStep = s.step;
+
+          // Milestone list
+          const milestones = [
+            {
+              title: 'Order Confirmed & ₹49 Deposit Verified',
+              desc: `Reservation deposit of ₹${o.deposit_amount} received via Razorpay. Order locked for production.`
+            },
+            {
+              title: 'Calligraphy Inscribed by Artisan',
+              desc: 'Authentic Persian/oriental lettering hand-composed on 300 GSM archival media.'
+            },
+            {
+              title: 'A4 Frame Assembled & Quality Sealed',
+              desc: 'Mounted in matte black moulding with crystal-clear acrylic glass and double-bubble protection.'
+            },
+            {
+              title: o.courier_name ? `Dispatched via ${escapeHtml(o.courier_name)} Air Express` : 'Dispatched via Express Courier',
+              desc: o.tracking_number ? `AWB: ${escapeHtml(o.tracking_number)} · Fast transit to delivery hub` : 'Handed over to priority logistics network with live transit tracking.'
+            },
+            {
+              title: 'Out for Delivery & COD Settlement',
+              desc: `Courier executive out for delivery. Pay remaining COD balance of ₹${o.cod_amount} via cash or UPI.`
+            }
+          ];
+
+          let stepperHtml = '';
+          if (activeStep < 0) {
+            stepperHtml = `
+              <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); padding: 1rem; text-align: center; color: #FCA5A5; font-size: 0.85rem; margin-bottom: 1.25rem;">
+                ⚠️ This order is currently marked as <strong>${escapeHtml(s.label)}</strong>. If you have questions regarding your deposit refund or replacement, please contact our concierge team.
+              </div>
+            `;
+          } else {
+            stepperHtml = '<div class="track-stepper">';
+            milestones.forEach((m, idx) => {
+              const stepNum = idx + 1;
+              let itemClass = '';
+              let dotContent = stepNum;
+
+              if (stepNum < activeStep) {
+                itemClass = 'completed';
+                dotContent = '✓';
+              } else if (stepNum === activeStep) {
+                itemClass = 'active';
+                dotContent = '●';
+              } else {
+                itemClass = '';
+                dotContent = stepNum;
+              }
+
+              stepperHtml += `
+                <div class="track-step-item ${itemClass}">
+                  <div class="track-step-dot">${dotContent}</div>
+                  <div class="track-step-details">
+                    <div class="track-step-title">${m.title}</div>
+                    <div class="track-step-sub">${m.desc}</div>
+                  </div>
+                </div>
+              `;
+            });
+            stepperHtml += '</div>';
+          }
+
+          // Shipping card if courier is assigned
+          let shippingBoxHtml = '';
+          if (o.courier_name || o.tracking_number) {
+            shippingBoxHtml = `
+              <div style="background: rgba(212, 175, 106, 0.06); border: 1px solid rgba(212, 175, 106, 0.2); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                <div>
+                  <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 600;">Express Courier Dispatch</div>
+                  <div style="font-weight: 700; color: var(--ink); font-size: 0.95rem; margin-top: 2px;">${escapeHtml(o.courier_name || 'Standard Courier')}</div>
+                  <div style="font-size: 0.78rem; color: var(--muted); font-family: monospace; margin-top: 2px;">AWB: ${escapeHtml(o.tracking_number || 'Pending Assignment')}</div>
+                </div>
+                ${o.tracking_url ? `
+                  <a href="${escapeHtml(o.tracking_url)}" target="_blank" rel="noopener" class="btn" style="padding: 8px 14px; font-size: 0.78rem; background: var(--accent); color: #141210; font-weight: 700;">
+                    Track on ${escapeHtml(o.courier_name || 'Carrier')} ↗
+                  </a>
+                ` : ''}
+              </div>
+            `;
+          }
+
+          // Items snapshot
+          let itemsHtml = '';
+          if (items.length > 0) {
+            itemsHtml = `
+              <div style="background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+                <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; margin-bottom: 0.75rem;">Handcrafted Frame Items</div>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                  ${items.map(it => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; border-bottom: 1px solid var(--line-soft); padding-bottom: 0.6rem;">
+                      <div>
+                        <div style="font-weight: 600; color: var(--ink); font-size: 0.86rem;">${escapeHtml(it.product_title || 'A4 Wall Frame')}</div>
+                        <div style="font-size: 0.74rem; color: var(--accent); margin-top: 2px;">
+                          ${it.english_name ? `Name: <strong>${escapeHtml(it.english_name)}</strong>` : ''}
+                          ${it.arabic_name ? ` (${escapeHtml(it.arabic_name)})` : ''}
+                          ${it.has_gift ? ' · <span style="color:#A3E635;">🎁 Gift Box Included</span>' : ''}
+                        </div>
+                      </div>
+                      <div style="text-align: right; font-weight: 600; font-size: 0.85rem; color: var(--ink);">
+                        ₹${it.price || 499}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            `;
+          }
+
+          // Payment balance card
+          const paymentBoxHtml = `
+            <div style="background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 1rem 1.25rem; margin-bottom: 1.25rem;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem; font-size: 0.84rem;">
+                <span style="color: var(--muted);">Total Order Value:</span>
+                <strong style="color: var(--ink);">₹${o.total_amount}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.4rem; font-size: 0.84rem;">
+                <span style="color: var(--muted);">Advance Deposit Paid:</span>
+                <strong style="color: #A3E635;">₹${o.deposit_amount}</strong>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-top: 1px dashed var(--line); padding-top: 0.5rem; margin-top: 0.5rem; font-size: 0.92rem;">
+                <span style="font-weight: 700; color: var(--accent);">Balance Due on Delivery (COD):</span>
+                <strong style="color: var(--accent); font-size: 1.05rem;">₹${o.cod_amount}</strong>
+              </div>
+            </div>
+          `;
+
+          // Put it all together
+          resultBox.innerHTML = `
+            <div class="track-order-summary-badge">
+              <div>
+                <div class="track-order-num">Order #${escapeHtml(o.order_number)}</div>
+                <div style="font-size: 0.76rem; color: var(--muted); margin-top: 2px;">
+                  Customer: <strong>${escapeHtml(o.customer_name)}</strong>
+                </div>
+              </div>
+              <span class="track-order-status-pill" style="background: ${s.bg}; color: ${s.color}; border: 1px solid ${s.color};">
+                ${escapeHtml(s.label)}
+              </span>
+            </div>
+
+            ${shippingBoxHtml}
+            ${paymentBoxHtml}
+            ${itemsHtml}
+            ${stepperHtml}
+
+            <a href="https://wa.me/919305654028?text=Hi%20NAMORA%2C%20I%20have%20an%20inquiry%20regarding%20my%20Order%20%23${encodeURIComponent(o.order_number)}" 
+               target="_blank" rel="noopener" class="btn btn-whatsapp" style="width: 100%; margin-top: 1.5rem; text-align: center; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+              <span>💬</span> Inquire with NAMORA Concierge on WhatsApp
+            </a>
+          `;
+          showToast('Live order status retrieved!');
+        } catch (e) {
+          console.error('Tracking fetch note:', e);
+          resultBox.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: var(--radius-md); padding: 1.25rem 1rem; text-align: center; color: #FCA5A5;">
+              Unable to reach tracking service. Please verify your connection or reach out on WhatsApp.
+            </div>
+          `;
+        }
       }
 
       document.addEventListener('keydown', (e) => {
@@ -7989,62 +8140,8 @@
           <button type="button" class="btn" onclick="submitOrderTracking()" style="padding: 10px 18px; font-size: 0.82rem;">Track &rarr;</button>
         </div>
 
-        <a href="javascript:void(0)" class="track-demo-chip" onclick="fillDemoTracking()">Try demo: Order #NAM-8421 (Ayesha K.)</a>
-
-        <div class="track-result-box" id="trackResultBox">
-          <div class="track-order-summary-badge">
-            <div>
-              <div class="track-order-num" id="trackOrderTitle">Order #NAM-8421</div>
-              <div style="font-size: 0.74rem; color: var(--muted); margin-top: 2px;" id="trackOrderSubtitle">Red Persian Carpet Frame (Ayesha)</div>
-            </div>
-            <span class="track-order-status-pill" id="trackStatusPill">DISPATCHED</span>
-          </div>
-
-          <div class="track-stepper">
-            <div class="track-step-item completed">
-              <div class="track-step-dot">✓</div>
-              <div class="track-step-details">
-                <div class="track-step-title">Order Confirmed &amp; Deposit Paid</div>
-                <div class="track-step-sub" id="trackStep1Time">Yesterday, 02:40 PM · Advance ₹49 verified via Razorpay</div>
-              </div>
-            </div>
-
-            <div class="track-step-item completed">
-              <div class="track-step-dot">✓</div>
-              <div class="track-step-details">
-                <div class="track-step-title">Calligraphy Inscribed by Artisan</div>
-                <div class="track-step-sub" id="trackStep2Time">Today, 10:15 AM · Hand-finished 300 GSM Archival Print</div>
-              </div>
-            </div>
-
-            <div class="track-step-item completed">
-              <div class="track-step-dot">✓</div>
-              <div class="track-step-details">
-                <div class="track-step-title">A4 Matte Black Frame Assembled &amp; Inspected</div>
-                <div class="track-step-sub" id="trackStep3Time">Today, 01:20 PM · Sealed with Crystal Acrylic glass</div>
-              </div>
-            </div>
-
-            <div class="track-step-item active">
-              <div class="track-step-dot">●</div>
-              <div class="track-step-details">
-                <div class="track-step-title">Dispatched via Bluedart Air Express</div>
-                <div class="track-step-sub" id="trackStep4Time">AWB: BD8842910IN · In transit to destination hub</div>
-              </div>
-            </div>
-
-            <div class="track-step-item">
-              <div class="track-step-dot">5</div>
-              <div class="track-step-details">
-                <div class="track-step-title">Out for Delivery &amp; COD Balance</div>
-                <div class="track-step-sub" id="trackStep5Time">Expected within 24–48 hrs · Pay balance ₹450 to delivery agent</div>
-              </div>
-            </div>
-          </div>
-
-          <a href="https://wa.me/919305654028?text=Hi%20NAMORA%2C%20I%20want%20to%20check%20status%20for%20my%20order" 
-             target="_blank" rel="noopener" class="btn btn-whatsapp" style="width: 100%; margin-top: 1.5rem; text-align: center;">
-            ✆ Get WhatsApp Live Updates
+        <div class="track-result-box" id="trackResultBox" style="display: none;">
+          <!-- Dynamically populated by submitOrderTracking() with live Supabase milestones, shipping AWB, COD balance & items snapshot -->
         </div>
       </div>
     </div>

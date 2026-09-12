@@ -936,6 +936,76 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --------------------------------------------------------------------------
+  // API ROUTE: POST /api/track-order (Customer Order Tracking)
+  // --------------------------------------------------------------------------
+  if (req.method === 'POST' && pathname === '/api/track-order') {
+    try {
+      const body = await parseBody(req);
+      const rawQuery = (body && body.query) ? body.query.toString().trim() : '';
+
+      if (!rawQuery) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ found: false, message: 'Please provide an order number or phone number' }));
+      }
+
+      let order = null;
+      // 1. Check by Order Number (e.g. NAM-1234)
+      if (rawQuery.toUpperCase().startsWith('NAM-')) {
+        const oNum = rawQuery.toUpperCase();
+        const oRes = await supabaseRequest(`orders?order_number=eq.${encodeURIComponent(oNum)}&limit=1`);
+        if (oRes.status === 200 && Array.isArray(oRes.data) && oRes.data.length > 0) {
+          order = oRes.data[0];
+        }
+      } else {
+        // 2. Check by Phone Number (last 10 digits)
+        const digits = rawQuery.replace(/\D/g, '').slice(-10);
+        if (digits.length >= 10) {
+          const oRes = await supabaseRequest(`orders?phone=like.*${digits}&order=created_at.desc&limit=1`);
+          if (oRes.status === 200 && Array.isArray(oRes.data) && oRes.data.length > 0) {
+            order = oRes.data[0];
+          }
+        }
+      }
+
+      if (!order) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({
+          found: false,
+          message: 'No order found matching your inquiry. Please check your order number or phone number.'
+        }));
+      }
+
+      // Fetch items for this order with safe projection
+      const iRes = await supabaseRequest(`order_items?order_id=eq.${order.id}&select=product_title,product_image,english_name,arabic_name,ink_style,font_style,is_ready_made,has_gift,price`);
+      const items = (iRes.status === 200 && Array.isArray(iRes.data)) ? iRes.data : [];
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        found: true,
+        order: {
+          order_number: order.order_number,
+          customer_name: order.customer_name,
+          status: order.status,
+          payment_status: order.payment_status,
+          courier_name: order.courier_name || '',
+          tracking_number: order.tracking_number || '',
+          tracking_url: order.tracking_url || '',
+          total_amount: order.total_amount,
+          deposit_amount: order.deposit_amount,
+          cod_amount: order.cod_amount,
+          created_at: order.created_at,
+          dispatched_at: order.dispatched_at,
+          delivered_at: order.delivered_at
+        },
+        items
+      }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ found: false, error: e.message }));
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // STATIC FILE SERVING
   // --------------------------------------------------------------------------
   let reqPath = pathname;
