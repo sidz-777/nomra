@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useId } from 'react';
+import { useRouter } from 'next/navigation';
 import { useCart } from './CartContext';
 import { CartItemCard } from './CartItemCard';
 import { GiftOptions } from './GiftOptions';
@@ -20,6 +21,7 @@ export function CartDrawer() {
     toggleCart,
   } = useCart();
 
+  const router = useRouter();
   const titleId = useId();
   const { dispatchDate, deliveryDate } = getEstimatedDispatchDates();
 
@@ -44,8 +46,9 @@ export function CartDrawer() {
     }
   };
 
-  const handleCheckoutPlaceholder = () => {
-    alert('Secure Checkout & Razorpay deposit flow will be activated in Phase 8.');
+  const handleProceedToCheckout = () => {
+    toggleCart(false);
+    router.push('/checkout');
   };
 
   const whatsAppUrl = buildCartWhatsAppUrl(items, gift, totals);
@@ -187,7 +190,7 @@ export function CartDrawer() {
                 variant="primary"
                 fullWidth
                 size="lg"
-                onClick={handleCheckoutPlaceholder}
+                onClick={handleProceedToCheckout}
                 className="shadow-luxury font-bold tracking-wide"
               >
                 Pay {formatINR(totals.totalDeposit)} Deposit Now ({totals.totalFrames} {totals.totalFrames === 1 ? 'Frame' : 'Frames'})
