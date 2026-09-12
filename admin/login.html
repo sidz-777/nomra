@@ -145,9 +145,9 @@
       </button>
     </form>
 
-    <div>
+    <div id="demoLoginWrap" style="display: none;">
       <a href="javascript:void(0)" class="demo-login-chip" onclick="enterDemoMode()">
-        ⚡ Quick Preview (Demo Admin Bypass)
+        ⚡ Quick Preview (Dev Demo Bypass)
       </a>
     </div>
 
@@ -158,7 +158,7 @@
 
   <script>
     function getSupabase() {
-      const config = window.NAMORA_SUPABASE_CONFIG || {};
+      const config = window.NAMORA_CONFIG || window.NAMORA_SUPABASE_CONFIG || {};
       const url = config.SUPABASE_URL && config.SUPABASE_URL.trim();
       const key = config.SUPABASE_ANON_KEY && config.SUPABASE_ANON_KEY.trim();
 
@@ -174,6 +174,15 @@
       return null;
     }
 
+    // Check configuration and show demo bypass only if DEMO_ADMIN_MODE is enabled
+    document.addEventListener('DOMContentLoaded', () => {
+      const config = window.NAMORA_CONFIG || window.NAMORA_SUPABASE_CONFIG || {};
+      if (config.DEMO_ADMIN_MODE === true) {
+        const wrap = document.getElementById('demoLoginWrap');
+        if (wrap) wrap.style.display = 'block';
+      }
+    });
+
     async function handleLogin(e) {
       e.preventDefault();
       const alertEl = document.getElementById('loginAlert');
@@ -188,9 +197,10 @@
       const client = getSupabase();
 
       if (!client) {
-        // If Supabase not yet configured, allow demo bypass
-        localStorage.setItem('namora_admin_demo', 'true');
-        window.location.href = 'index.html';
+        alertEl.textContent = 'Backend connection unavailable. Please check configuration.';
+        alertEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Sign In to Portal →';
         return;
       }
 
@@ -218,8 +228,13 @@
     }
 
     function enterDemoMode() {
-      localStorage.setItem('namora_admin_demo', 'true');
-      window.location.href = 'index.html';
+      const config = window.NAMORA_CONFIG || window.NAMORA_SUPABASE_CONFIG || {};
+      if (config.DEMO_ADMIN_MODE === true) {
+        localStorage.setItem('namora_admin_demo', 'true');
+        window.location.href = 'index.html';
+      } else {
+        alert('Demo bypass is disabled in production.');
+      }
     }
   </script>
 </body>

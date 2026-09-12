@@ -195,52 +195,91 @@
   <script>
     let catalogItems = [];
 
-    // Fallback catalog from readyStockProducts
+    // Fallback catalog from readyStockProducts if database unreachable
     const DEFAULT_CATALOG = [
-      { id: 'car-1', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS', image: 'car1.jpg', price: 499, in_stock: true },
-      { id: 'car-2', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M5 F90 Black Edition', image: 'car2.jpg', price: 499, in_stock: true },
-      { id: 'car-3', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Silver', image: 'car3.jpg', price: 499, in_stock: true },
-      { id: 'car-4', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M8 Competition Coupé', image: 'car4.jpg', price: 499, in_stock: true },
-      { id: 'car-5', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Rear Wing', image: 'car5.jpg', price: 499, in_stock: true },
-      { id: 'car-6', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche GT3 RS White Frame', image: 'car6.jpg', price: 499, in_stock: true },
-      { id: 'car-7', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS Carbon Gray', image: 'car7.jpg', price: 499, in_stock: true },
-      { id: 'car-8', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS 3D Diecast', image: 'car8.jpg', price: 499, in_stock: true },
-      { id: 'car-9', category: 'cars', categoryLabel: 'Supercars', title: 'Ford Mustang 1964 Legendary', image: 'car9.jpg', price: 499, in_stock: true },
-      { id: 'car-11', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 RSR Triptych Wall Set', image: 'car11.jpg', price: 499, in_stock: true },
-      { id: 'sport-14', category: 'sports', categoryLabel: 'Sports Legends', title: 'Cristiano Ronaldo — CR7 1985', image: 'sport14.jpg', price: 499, in_stock: true },
-      { id: 'sport-3', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi — World Cup Triumph', image: 'sport3.jpg', price: 499, in_stock: true },
-      { id: 'sport-4', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 Argentina Jersey Frame', image: 'sport4.jpg', price: 499, in_stock: true },
-      { id: 'sport-5', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi #10 Accolades', image: 'sport5.jpg', price: 499, in_stock: true },
-      { id: 'sport-10', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 3D Layered Jersey', image: 'sport10.jpg', price: 499, in_stock: true },
-      { id: 'sport-1', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Vintage Crest', image: 'sport1.jpg', price: 499, in_stock: true },
-      { id: 'sport-2', category: 'sports', categoryLabel: 'Sports Legends', title: 'Real Madrid — Hala Madrid', image: 'sport2.jpg', price: 499, in_stock: true },
-      { id: 'sport-13', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jude Bellingham — England & Madrid', image: 'sport13.jpg', price: 499, in_stock: true },
-      { id: 'sport-9', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr #10 Brazil 3D Frame', image: 'sport9.jpg', price: 499, in_stock: true },
-      { id: 'sport-12', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr 1992 Brazil Signature', image: 'sport12.jpg', price: 499, in_stock: true },
-      { id: 'sport-15', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr — Santos FC Heritage', image: 'sport15.jpg', price: 499, in_stock: true },
-      { id: 'sport-6', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Leather Grain', image: 'sport6.jpg', price: 499, in_stock: true },
-      { id: 'sport-11', category: 'sports', categoryLabel: 'Sports Legends', title: 'Força Barça — Més Que Un Club', image: 'sport11.jpg', price: 499, in_stock: true },
-      { id: 'sport-8', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jamal Musiala #10 Germany DFB', image: 'sport8.jpg', price: 499, in_stock: true },
-      { id: 'pop-1', category: 'pop', categoryLabel: 'Pop Culture', title: 'Spider-Man: Into the Spider-Verse', image: 'sport16.jpg', price: 499, in_stock: true },
-      { id: 'pop-2', category: 'pop', categoryLabel: 'Motorsport', title: 'Lewis Hamilton #44 Mercedes F1', image: 'sport18.jpg', price: 499, in_stock: true },
-      { id: 'name-4', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Carpet Mosaic', image: 'name4.jpg', price: 499, in_stock: true },
-      { id: 'name-7', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Heritage Rug', image: 'name7.jpg', price: 499, in_stock: true },
-      { id: 'name-9', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Blush Floral', image: 'name9.png', price: 499, in_stock: true },
-      { id: 'name-10', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Royal Purple', image: 'name10.jpg', price: 499, in_stock: true },
-      { id: 'name-3', category: 'names', categoryLabel: 'Ready Names', title: 'Muhammad (محمد) — Kilim Rug', image: 'name3.jpg', price: 499, in_stock: true },
-      { id: 'name-8', category: 'names', categoryLabel: 'Ready Names', title: 'Ahmad (أحمد) — Handheld Photo', image: 'name8.jpg', price: 499, in_stock: true },
-      { id: 'name-6', category: 'names', categoryLabel: 'Ready Names', title: 'Maryam (مريم) — Jasmine Flower', image: 'name6.jpg', price: 499, in_stock: true },
-      { id: 'name-5', category: 'names', categoryLabel: 'Ready Names', title: 'Batool (بتول) — Crimson Tapestry', image: 'name5.jpg', price: 499, in_stock: true },
-      { id: 'name-2', category: 'names', categoryLabel: 'Ready Names', title: 'Rimsha (رمشا) — Floral "R"', image: 'name2.jpg', price: 499, in_stock: true },
-      { id: 'name-1', category: 'names', categoryLabel: 'Ready Names', title: 'Tayyiba (طيبة) — Persian Blue', image: 'name1.jpg', price: 499, in_stock: true },
-      { id: 'name-11', category: 'names', categoryLabel: 'Ready Names', title: 'Sabr (صبر - Patience)', image: 'name11.jpg', price: 499, in_stock: true }
+      { id: 'car-1', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS', image: 'car1.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-2', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M5 F90 Black Edition', image: 'car2.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-3', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Silver', image: 'car3.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-4', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M8 Competition Coupé', image: 'car4.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-5', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Rear Wing', image: 'car5.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-6', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche GT3 RS White Frame', image: 'car6.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-7', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS Carbon Gray', image: 'car7.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-8', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS 3D Diecast', image: 'car8.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-9', category: 'cars', categoryLabel: 'Supercars', title: 'Ford Mustang 1964 Legendary', image: 'car9.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'car-11', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 RSR Triptych Wall Set', image: 'car11.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-14', category: 'sports', categoryLabel: 'Sports Legends', title: 'Cristiano Ronaldo — CR7 1985', image: 'sport14.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-3', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi — World Cup Triumph', image: 'sport3.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-4', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 Argentina Jersey Frame', image: 'sport4.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-5', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi #10 Accolades', image: 'sport5.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-10', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 3D Layered Jersey', image: 'sport10.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-1', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Vintage Crest', image: 'sport1.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-2', category: 'sports', categoryLabel: 'Sports Legends', title: 'Real Madrid — Hala Madrid', image: 'sport2.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-13', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jude Bellingham — England & Madrid', image: 'sport13.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-9', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr #10 Brazil 3D Frame', image: 'sport9.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-12', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr 1992 Brazil Signature', image: 'sport12.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-15', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr — Santos FC Heritage', image: 'sport15.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-6', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Leather Grain', image: 'sport6.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-11', category: 'sports', categoryLabel: 'Sports Legends', title: 'Força Barça — Més Que Un Club', image: 'sport11.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'sport-8', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jamal Musiala #10 Germany DFB', image: 'sport8.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'pop-1', category: 'pop', categoryLabel: 'Pop Culture', title: 'Spider-Man: Into the Spider-Verse', image: 'sport16.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'pop-2', category: 'pop', categoryLabel: 'Motorsport', title: 'Lewis Hamilton #44 Mercedes F1', image: 'sport18.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-4', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Carpet Mosaic', image: 'name4.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-7', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Heritage Rug', image: 'name7.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-9', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Blush Floral', image: 'name9.png', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-10', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Royal Purple', image: 'name10.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-3', category: 'names', categoryLabel: 'Ready Names', title: 'Muhammad (محمد) — Kilim Rug', image: 'name3.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-8', category: 'names', categoryLabel: 'Ready Names', title: 'Ahmad (أحمد) — Handheld Photo', image: 'name8.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-6', category: 'names', categoryLabel: 'Ready Names', title: 'Maryam (مريم) — Jasmine Flower', image: 'name6.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-5', category: 'names', categoryLabel: 'Ready Names', title: 'Batool (بتول) — Crimson Tapestry', image: 'name5.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-2', category: 'names', categoryLabel: 'Ready Names', title: 'Rimsha (رمشا) — Floral "R"', image: 'name2.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-1', category: 'names', categoryLabel: 'Ready Names', title: 'Tayyiba (طيبة) — Persian Blue', image: 'name1.jpg', price: 499, in_stock: true, stock_quantity: 5 },
+      { id: 'name-11', category: 'names', categoryLabel: 'Ready Names', title: 'Sabr (صبر - Patience)', image: 'name11.jpg', price: 499, in_stock: true, stock_quantity: 5 }
     ];
 
     let currentCat = 'all';
 
     async function loadCatalog() {
+      const client = (typeof getSupabase === 'function' ? getSupabase() : null);
+      if (client) {
+        try {
+          const { data, error } = await client
+            .from('products')
+            .select('*')
+            .order('sort_order', { ascending: true });
+
+          if (data && data.length) {
+            catalogItems = data.map(p => ({
+              id: p.id,
+              category: p.category,
+              categoryLabel: p.category_label || p.category,
+              title: p.title,
+              image: p.image_url,
+              price: p.price,
+              in_stock: p.in_stock,
+              stock_quantity: (p.stock_quantity !== undefined ? p.stock_quantity : (p.in_stock ? 5 : 0)),
+              is_stock_managed: p.is_stock_managed
+            }));
+            updateCategoryCounts();
+            renderCatalogGrid();
+            return;
+          }
+        } catch (e) {
+          console.warn('Supabase catalog fetch note:', e);
+        }
+      }
+
       catalogItems = [...DEFAULT_CATALOG];
+      updateCategoryCounts();
       renderCatalogGrid();
+    }
+
+    function updateCategoryCounts() {
+      const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+      setEl('countAllProducts', catalogItems.length);
+      setEl('countCatCars', catalogItems.filter(p => p.category === 'cars').length);
+      setEl('countCatSports', catalogItems.filter(p => p.category === 'sports').length);
+      setEl('countCatNames', catalogItems.filter(p => p.category === 'names').length);
+      setEl('countCatPop', catalogItems.filter(p => p.category === 'pop').length);
     }
 
     function filterCatalog(cat, btn) {
@@ -260,11 +299,13 @@
         ? catalogItems
         : catalogItems.filter(p => p.category === currentCat);
 
-      grid.innerHTML = filtered.map(p => `
-        <div class="catalog-item-card">
+      grid.innerHTML = filtered.map(p => {
+        const qty = p.stock_quantity !== undefined ? p.stock_quantity : (p.in_stock ? 5 : 0);
+        return `
+        <div class="catalog-item-card" id="card-${p.id}">
           <div class="catalog-thumb-box">
-            <span class="${p.in_stock ? 'stock-badge-active' : 'stock-badge-out'}">
-              ${p.in_stock ? 'In Stock' : 'Out of Stock'}
+            <span class="${p.in_stock && qty > 0 ? 'stock-badge-active' : 'stock-badge-out'}">
+              ${p.in_stock && qty > 0 ? `In Stock (${qty})` : 'Out of Stock'}
             </span>
             <img src="../${p.image}" class="catalog-img" alt="${p.title}" onerror="this.src='../design1.jpg'" />
           </div>
@@ -272,23 +313,97 @@
             <div class="catalog-cat">${p.categoryLabel}</div>
             <div class="catalog-title">${p.title}</div>
             <div class="catalog-price-row">
-              <span class="catalog-price">₹${p.price}</span>
+              <div>
+                <div class="catalog-price">₹${p.price}</div>
+                <div style="font-size: 0.72rem; color: var(--ink-muted); margin-top: 2px;">
+                  Stock: <strong style="color: ${qty > 0 ? 'var(--success)' : 'var(--danger)'};">${qty} units</strong>
+                </div>
+              </div>
               <button type="button" class="stock-toggle-btn" onclick="toggleStockStatus('${p.id}')">
-                ${p.in_stock ? 'Mark Out of Stock' : 'Mark In Stock'}
+                ${p.in_stock && qty > 0 ? 'Mark Out of Stock' : 'Mark In Stock'}
+              </button>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; border-top: 1px dashed var(--line-admin); padding-top: 0.5rem;">
+              <button type="button" class="filter-btn" style="flex: 1; justify-content: center; font-size: 0.72rem; padding: 0.3rem 0.5rem;" onclick="adjustStock('${p.id}', 5)">
+                +5 Restock
+              </button>
+              <button type="button" class="filter-btn" style="flex: 1; justify-content: center; font-size: 0.72rem; padding: 0.3rem 0.5rem;" onclick="adjustStock('${p.id}', -1)" ${qty <= 0 ? 'disabled' : ''}>
+                -1 Sold
               </button>
             </div>
           </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
     }
 
-    function toggleStockStatus(id) {
+    async function toggleStockStatus(id) {
       const item = catalogItems.find(p => p.id === id);
-      if (item) {
-        item.in_stock = !item.in_stock;
-        renderCatalogGrid();
-        showToast(`Updated stock status for "${item.title}"!`);
+      if (!item) return;
+
+      const newInStock = !item.in_stock;
+      item.in_stock = newInStock;
+      if (!newInStock) {
+        item.stock_quantity = 0;
+      } else if (item.stock_quantity <= 0) {
+        item.stock_quantity = 5;
       }
+      renderCatalogGrid();
+
+      const client = (typeof getSupabase === 'function' ? getSupabase() : null);
+      if (client) {
+        try {
+          await client
+            .from('products')
+            .update({ in_stock: newInStock, stock_quantity: item.stock_quantity })
+            .eq('id', id);
+
+          if (typeof auditLogAdminAction === 'function') {
+            auditLogAdminAction('stock_status_toggled', 'products', id, { in_stock: newInStock, stock_quantity: item.stock_quantity });
+          }
+        } catch (e) {
+          console.warn('Stock status update note:', e);
+        }
+      }
+      showToast(`Updated stock status for "${item.title}"!`);
+    }
+
+    async function adjustStock(id, delta) {
+      const item = catalogItems.find(p => p.id === id);
+      if (!item) return;
+
+      const newQty = Math.max(0, (item.stock_quantity || 0) + delta);
+      item.stock_quantity = newQty;
+      item.in_stock = (newQty > 0);
+      renderCatalogGrid();
+
+      const client = (typeof getSupabase === 'function' ? getSupabase() : null);
+      if (client) {
+        try {
+          // Attempt atomic RPC first
+          const { error: rpcErr } = await client.rpc('adjust_product_inventory', {
+            p_product_id: id,
+            p_change_qty: delta,
+            p_movement_type: (delta > 0 ? 'restock' : 'adjustment'),
+            p_notes: `Manual adjustment from admin panel (${delta > 0 ? '+' : ''}${delta})`
+          });
+
+          if (rpcErr) {
+            // Direct update fallback
+            await client
+              .from('products')
+              .update({ stock_quantity: newQty, in_stock: (newQty > 0) })
+              .eq('id', id);
+          }
+
+          if (typeof auditLogAdminAction === 'function') {
+            auditLogAdminAction('stock_adjusted', 'products', id, { delta, new_quantity: newQty });
+          }
+        } catch (e) {
+          console.warn('Stock adjustment note:', e);
+        }
+      }
+      showToast(`Stock updated for "${item.title}": ${newQty} units`);
     }
 
     document.addEventListener('DOMContentLoaded', () => {

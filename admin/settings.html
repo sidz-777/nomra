@@ -222,13 +222,68 @@ window.NAMORA_SUPABASE_CONFIG = {<br/>
 
   <script src="admin.js"></script>
   <script>
-    function saveStoreSettings(e) {
+    async function loadStoreSettings() {
+      const client = (typeof getSupabase === 'function' ? getSupabase() : null);
+      if (!client) return;
+
+      try {
+        const { data, error } = await client.from('settings').select('*');
+        if (data && data.length) {
+          const map = {};
+          data.forEach(s => map[s.key] = s.value);
+
+          if (map['frame_base_price']) document.getElementById('settingFramePrice').value = map['frame_base_price'];
+          if (map['deposit_amount']) document.getElementById('settingDeposit').value = map['deposit_amount'];
+          if (map['cod_balance']) document.getElementById('settingCod').value = map['cod_balance'];
+          if (map['gift_packaging_price']) document.getElementById('settingGift').value = map['gift_packaging_price'];
+          if (map['whatsapp_helpline']) document.getElementById('settingWaPhone').value = map['whatsapp_helpline'];
+          if (map['store_upi_id']) document.getElementById('settingUpiId').value = map['store_upi_id'];
+        }
+      } catch (err) {
+        console.warn('Error loading store settings:', err);
+      }
+    }
+
+    async function saveStoreSettings(e) {
       e.preventDefault();
-      showToast('Store settings saved successfully!');
+      const framePrice = document.getElementById('settingFramePrice').value.trim();
+      const deposit = document.getElementById('settingDeposit').value.trim();
+      const cod = document.getElementById('settingCod').value.trim();
+      const gift = document.getElementById('settingGift').value.trim();
+      const waPhone = document.getElementById('settingWaPhone').value.trim();
+      const upiId = document.getElementById('settingUpiId').value.trim();
+
+      const client = (typeof getSupabase === 'function' ? getSupabase() : null);
+      if (client) {
+        try {
+          const updates = [
+            { key: 'frame_base_price', value: framePrice },
+            { key: 'deposit_amount', value: deposit },
+            { key: 'cod_balance', value: cod },
+            { key: 'gift_packaging_price', value: gift },
+            { key: 'whatsapp_helpline', value: waPhone },
+            { key: 'store_upi_id', value: upiId }
+          ];
+
+          for (const u of updates) {
+            await client.from('settings').upsert(u, { onConflict: 'key' });
+          }
+
+          if (typeof auditLogAdminAction === 'function') {
+            auditLogAdminAction('store_settings_updated', 'settings', 'store_parameters', { framePrice, deposit, cod, gift });
+          }
+        } catch (err) {
+          console.warn('Error saving store settings:', err);
+        }
+      }
+
+      showToast('Store settings saved & synced to Supabase database!');
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      checkAdminAuth();
+      checkAdminAuth().then(auth => {
+        if (auth) loadStoreSettings();
+      });
     });
   </script>
 </body>

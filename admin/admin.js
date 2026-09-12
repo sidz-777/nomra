@@ -135,18 +135,30 @@ function getSupabase() {
 
 // Authentication Check
 async function checkAdminAuth() {
-  // Allow demo bypass with localStorage flag
-  if (localStorage.getItem('namora_admin_demo') === 'true') {
-    updateAdminUserDisplay('demo@namoraworld.com');
+  const config = window.NAMORA_CONFIG || window.NAMORA_SUPABASE_CONFIG || {};
+  const isDemoAllowed = config.DEMO_ADMIN_MODE === true;
+
+  // In production (DEMO_ADMIN_MODE !== true), strictly reject demo bypass
+  if (!isDemoAllowed) {
+    if (localStorage.getItem('namora_admin_demo')) {
+      localStorage.removeItem('namora_admin_demo');
+    }
+  } else if (localStorage.getItem('namora_admin_demo') === 'true') {
+    // Only allowed if explicitly configured in development mode
+    updateAdminUserDisplay('demo@namoraworld.com (Dev Demo)');
+    showDemoModeBanner();
     return true;
   }
 
   const client = getSupabase();
   if (!client) {
-    // If Supabase is not configured yet, allow demo dashboard with banner
-    updateAdminUserDisplay('unconfigured (demo mode)');
-    showDemoModeBanner();
-    return true;
+    if (isDemoAllowed) {
+      updateAdminUserDisplay('unconfigured (demo mode)');
+      showDemoModeBanner();
+      return true;
+    }
+    window.location.href = 'login.html';
+    return false;
   }
 
   try {
@@ -155,7 +167,8 @@ async function checkAdminAuth() {
       window.location.href = 'login.html';
       return false;
     }
-    updateAdminUserDisplay(session.user.email);
+    const userEmail = (session.user && session.user.email) || 'admin@namoraworld.com';
+    updateAdminUserDisplay(userEmail);
     return true;
   } catch (err) {
     console.warn('Auth check error:', err);
@@ -391,11 +404,12 @@ function renderOrdersTable() {
   }).join('');
 }
 
-// Change Order Status with Instant Supabase Sync
+// Change Order Status with Instant Supabase Sync & Audit Logging
 async function changeOrderStatus(orderId, newStatus) {
   const order = allOrders.find(o => o.id === orderId);
   if (!order) return;
 
+  const previousStatus = order.status;
   order.status = newStatus;
   renderDashboard();
 
@@ -411,12 +425,60 @@ async function changeOrderStatus(orderId, newStatus) {
         showToast('Supabase update note: ' + error.message);
       } else {
         showToast(`Order ${order.order_number} status updated to ${newStatus.replace('_', ' ')}!`);
+
+        // If order was cancelled, reverse stock for ready-made physical items
+        if (newStatus === 'cancelled' && previousStatus !== 'cancelled' && order.items) {
+          for (const item of order.items) {
+            if (item.is_ready_made && item.product_id) {
+              try {
+                await client.rpc('adjust_product_inventory', {
+                  p_product_id: item.product_id,
+                  p_change_qty: 1,
+                  p_movement_type: 'cancellation',
+                  p_notes: `Restored from cancelled order ${order.order_number}`
+                });
+              } catch (invErr) {
+                console.warn('Inventory reversal note:', invErr);
+              }
+            }
+          }
+        }
+
+        // Audit log action
+        auditLogAdminAction('order_status_changed', 'orders', orderId, {
+          order_number: order.order_number,
+          from: previousStatus,
+          to: newStatus
+        });
       }
     } catch (e) {
       console.warn('Status update error:', e);
     }
   } else {
     showToast(`Order ${order.order_number} status updated (Local Preview)!`);
+  }
+}
+
+// Audit Log Helper
+async function auditLogAdminAction(action, entityType, entityId, metadata) {
+  const client = getSupabase();
+  if (!client) return;
+
+  try {
+    const { data: { session } } = await client.auth.getSession();
+    const adminUser = (session && session.user && session.user.email) || 'admin';
+    await client
+      .from('admin_activity_logs')
+      .insert([{
+        admin_user_id: adminUser,
+        action: action,
+        entity_type: entityType,
+        entity_id: entityId,
+        metadata: metadata || {}
+      }]);
+  } catch (err) {
+    // Non-blocking log warning
+    console.warn('Audit log write note:', err.message);
   }
 }
 
