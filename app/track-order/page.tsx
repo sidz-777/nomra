@@ -1,20 +1,30 @@
-import Link from 'next/link';
+import React, { Suspense } from 'react';
+import type { Metadata } from 'next';
+import { PageShell } from '@/components/layout/PageShell';
+import { TrackOrderView } from '@/components/tracking';
 
-export default function TrackOrderPlaceholderPage() {
+export const metadata: Metadata = {
+  title: 'Track Your Order | NAMORA Handcrafted Luxury Frames',
+  description:
+    'Live order status, artisan handcrafting milestones, and express courier tracking for your NAMORA bespoke frame.',
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
+
+export default function TrackOrderPage() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-[#141210] text-[#F2EBDD]">
-      <div className="max-w-md w-full bg-[#1E1B18] border border-[#3A322A] rounded-2xl p-8 text-center">
-        <h1 className="text-2xl font-serif text-[#D4AF6A] mb-2">Track Your Frame</h1>
-        <p className="text-sm text-[#9B8E7A] mb-6">
-          Phase 2 Foundation Route Placeholder. Live order tracking modal remains operational on the main storefront.
-        </p>
-        <Link
-          href="/"
-          className="inline-block px-4 py-2 text-xs font-mono bg-[#141210] border border-[#3A322A] rounded-lg text-[#F2EBDD] hover:border-[#D4AF6A]"
-        >
-          &larr; Return to Foundation Home
-        </Link>
-      </div>
-    </div>
+    <PageShell>
+      <Suspense
+        fallback={
+          <div className="py-24 text-center text-namora-muted text-xs font-mono">
+            Loading order tracker...
+          </div>
+        }
+      >
+        <TrackOrderView />
+      </Suspense>
+    </PageShell>
   );
 }

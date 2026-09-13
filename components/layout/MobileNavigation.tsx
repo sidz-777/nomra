@@ -52,6 +52,14 @@ export function MobileNavigation({ isOpen, onClose, onCartClick }: MobileNavigat
               {link.label}
             </Link>
           ))}
+          <Link
+            href="/track-order"
+            onClick={onClose}
+            className="px-3 py-2.5 rounded-md text-sm font-medium text-namora-gold hover:bg-namora-soft transition flex items-center gap-2"
+          >
+            <span>🔍</span>
+            <span>Track Your Order</span>
+          </Link>
         </nav>
 
         <Divider />
