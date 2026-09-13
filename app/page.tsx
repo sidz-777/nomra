@@ -1,5 +1,6 @@
 import React from 'react';
 import { PageShell } from '@/components/layout/PageShell';
+import { JsonLd } from '@/components/seo/JsonLd';
 import {
   HeroSection,
   TrustStrip,
@@ -17,6 +18,9 @@ import { PersonalizationStudio } from '@/components/customizer';
 export default function HomePage() {
   return (
     <PageShell>
+      {/* Structured Data */}
+      <JsonLd />
+
       {/* 1. Hero Section with Video Showcase & Value Highlights */}
       <HeroSection />
 

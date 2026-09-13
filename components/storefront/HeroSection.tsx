@@ -75,6 +75,7 @@ export function HeroSection() {
                   loop
                   muted
                   playsInline
+                  preload="none"
                   poster={HERO_DATA.posterAsset}
                   className="w-full h-full object-cover"
                 >

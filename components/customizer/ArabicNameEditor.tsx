@@ -32,6 +32,7 @@ export function ArabicNameEditor({
           onChange={(e) => onChange(e.target.value)}
           placeholder="فاطمة"
           error={!!error}
+          aria-label="Arabic calligraphy name spelling"
           className="font-arabic text-xl sm:text-2xl text-right tracking-wide h-12"
         />
       </Field>

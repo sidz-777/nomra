@@ -56,6 +56,7 @@ export function NameInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder="e.g. Fatima or Zayd"
           error={!!error}
+          aria-label="English name to personalize"
           className="font-medium text-sm sm:text-base tracking-wide"
         />
       </Field>
