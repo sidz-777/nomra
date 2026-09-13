@@ -14,7 +14,7 @@ export async function GET() {
       });
       if (backendRes.ok) {
         const data = await backendRes.json();
-        if (data && data.success && Array.isArray(data.products)) {
+        if (data && data.success && Array.isArray(data.products) && data.products.length > 0) {
           return NextResponse.json(data);
         }
       }
