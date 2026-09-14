@@ -60,7 +60,8 @@ export function FramePreview({
           </button>
         </div>
 
-        <div className="product-display" id="customizerDisplay">
+        {/* Authentic A4 Portrait Aspect Ratio (1 / 1.414) */}
+        <div className="product-display" id="customizerDisplay" style={{ aspectRatio: '1 / 1.414' }}>
           <PreviewArtwork
             design={design}
             language={language}
