@@ -1,81 +1,62 @@
 import React from 'react';
-import { Container } from '@/components/layout/Container';
-import { SectionHeading } from '@/components/ui';
 import { ReviewCard } from './cards/ReviewCard';
-import { REVIEWS_SUMMARY, TESTIMONIALS } from '@/lib/storefront-data';
+import { TESTIMONIALS } from '@/lib/storefront-data';
 
 export function ReviewsSection() {
   return (
-    <section id="testimonials" className="py-16 sm:py-24 border-b border-namora-line bg-namora-soft/30">
-      <Container width="wide">
-        <SectionHeading
-          eyebrow="Loved by Families"
-          title="What Our Customers Say"
-          subtitle="Real unboxing moments and reviews from homes across India."
-        />
+    <section id="testimonials" className="section">
+      <div className="container">
+        <div className="section-head reveal">
+          <div className="eyebrow" style={{ justifyContent: 'center' }}>
+            Loved by Families
+          </div>
+          <h2>What Our Customers Say</h2>
+          <p>Real unboxing moments and reviews from homes across India.</p>
+        </div>
 
-        {/* 4.9★ Reviews Summary Card */}
-        <div className="p-6 sm:p-8 rounded-xl border border-namora-line bg-namora-card max-w-3xl mx-auto mb-12 shadow-card">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6 sm:gap-8">
-            {/* Big Score Block */}
-            <div className="text-center sm:text-left flex-shrink-0">
-              <div className="text-4xl sm:text-5xl font-hero font-bold text-namora-ink">
-                {REVIEWS_SUMMARY.score}
+        {/* 4.9★ REVIEWS SUMMARY CARD */}
+        <div className="reviews-summary-card reveal">
+          <div className="reviews-score-block">
+            <div className="reviews-big-score">4.9</div>
+            <div className="reviews-stars">★★★★★</div>
+            <div className="reviews-count-label">540+ Verified Buyers</div>
+          </div>
+          <div className="reviews-bars">
+            <div className="review-bar-row">
+              <span>5 ★</span>
+              <div className="review-bar-track">
+                <div className="review-bar-fill" style={{ width: '94%' }}></div>
               </div>
-              <div className="text-amber-400 text-lg tracking-wider my-1">
-                {'★'.repeat(REVIEWS_SUMMARY.stars)}
-              </div>
-              <div className="text-xs text-namora-muted font-mono">
-                {REVIEWS_SUMMARY.totalBuyers}
-              </div>
+              <span>94%</span>
             </div>
-
-            {/* Distribution Bars */}
-            <div className="flex-1 w-full space-y-2">
-              <div className="flex items-center gap-3 text-xs font-mono text-namora-muted">
-                <span className="w-8">5 ★</span>
-                <div className="flex-1 h-2 rounded-full bg-namora-soft overflow-hidden">
-                  <div
-                    className="h-full bg-namora-gold rounded-full"
-                    style={{ width: `${REVIEWS_SUMMARY.fiveStarPercent}%` }}
-                  />
-                </div>
-                <span className="w-10 text-right">{REVIEWS_SUMMARY.fiveStarPercent}%</span>
+            <div className="review-bar-row">
+              <span>4 ★</span>
+              <div className="review-bar-track">
+                <div className="review-bar-fill" style={{ width: '6%' }}></div>
               </div>
-
-              <div className="flex items-center gap-3 text-xs font-mono text-namora-muted">
-                <span className="w-8">4 ★</span>
-                <div className="flex-1 h-2 rounded-full bg-namora-soft overflow-hidden">
-                  <div
-                    className="h-full bg-namora-gold/60 rounded-full"
-                    style={{ width: `${REVIEWS_SUMMARY.fourStarPercent}%` }}
-                  />
-                </div>
-                <span className="w-10 text-right">{REVIEWS_SUMMARY.fourStarPercent}%</span>
-              </div>
+              <span>6%</span>
             </div>
           </div>
-
-          {/* Badges Strip */}
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-6 mt-6 border-t border-namora-line-soft text-[11px] text-namora-ink-soft">
-            {REVIEWS_SUMMARY.features.map((feature) => (
-              <span
-                key={feature}
-                className="px-3 py-1 rounded-full bg-namora-soft border border-namora-line-soft font-mono"
-              >
-                {feature}
-              </span>
-            ))}
+          <div className="reviews-badges-strip">
+            <div className="review-feature-pill">
+              ✦ <strong>100% Handcrafted:</strong> Archival 300 GSM Art
+            </div>
+            <div className="review-feature-pill">
+              🛡️ <strong>Transit Safe:</strong> Shatterproof Acrylic Glass
+            </div>
+            <div className="review-feature-pill">
+              🎁 <strong>Gift Delight:</strong> 98.6% Would Gift Again
+            </div>
           </div>
         </div>
 
-        {/* Customer Testimonial Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* CUSTOMER PHOTO REVIEW CARDS */}
+        <div className="testimonials-grid reveal-stagger">
           {TESTIMONIALS.map((review) => (
             <ReviewCard key={review.id} review={review} />
           ))}
         </div>
-      </Container>
+      </div>
     </section>
   );
 }

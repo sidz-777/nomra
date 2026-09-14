@@ -13,33 +13,24 @@ export function LanguageSelector({
   onChangeLanguage,
 }: LanguageSelectorProps) {
   return (
-    <div className="space-y-1.5">
-      <span className="block text-xs uppercase tracking-wider font-semibold text-namora-ink">
-        2. Language
-      </span>
-      <div className="grid grid-cols-2 gap-2">
+    <div>
+      <span className="label">2. Language</span>
+      <div className="option-row">
         <button
           type="button"
+          className={`chip ${language === 'en' ? 'active' : ''}`}
+          id="btnLangEn"
           onClick={() => onChangeLanguage('en')}
-          className={`py-2 px-4 rounded-md border text-xs sm:text-sm font-medium transition select-none flex items-center justify-center gap-2 ${
-            language === 'en'
-              ? 'bg-namora-gold text-black border-namora-gold font-semibold shadow-subtle'
-              : 'bg-namora-card text-namora-ink border-namora-line hover:border-namora-gold/60'
-          }`}
         >
           English
         </button>
-
         <button
           type="button"
+          className={`chip ${language === 'ar' ? 'active' : ''}`}
+          id="btnLangAr"
           onClick={() => onChangeLanguage('ar')}
-          className={`py-2 px-4 rounded-md border text-xs sm:text-sm font-medium transition select-none flex items-center justify-center gap-2 font-arabic ${
-            language === 'ar'
-              ? 'bg-namora-gold text-black border-namora-gold font-semibold shadow-subtle'
-              : 'bg-namora-card text-namora-ink border-namora-line hover:border-namora-gold/60'
-          }`}
         >
-          العربية (Arabic)
+          Arabic
         </button>
       </div>
     </div>

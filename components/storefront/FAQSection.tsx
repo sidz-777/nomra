@@ -1,28 +1,26 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Container } from '@/components/layout/Container';
-import { SectionHeading } from '@/components/ui';
 import { FAQItem } from './cards/FAQItem';
 import { FAQ_ITEMS } from '@/lib/storefront-data';
 
 export function FAQSection() {
-  const [openId, setOpenId] = useState<string | null>(FAQ_ITEMS[0].id);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const handleToggle = (id: string) => {
     setOpenId((prev) => (prev === id ? null : id));
   };
 
   return (
-    <section id="faq" className="py-16 sm:py-24 border-b border-namora-line bg-namora-soft/20">
-      <Container width="narrow">
-        <SectionHeading
-          eyebrow="Common Questions"
-          title="Frequently Asked Questions"
-          subtitle="Everything you need to know before ordering your personalized frame."
-        />
+    <section id="faq" className="section">
+      <div className="container">
+        <div className="section-head reveal">
+          <div className="eyebrow" style={{ justifyContent: 'center' }}>Common Questions</div>
+          <h2>Frequently Asked Questions</h2>
+          <p>Everything you need to know before ordering your personalized frame.</p>
+        </div>
 
-        <div className="border border-namora-line rounded-xl bg-namora-card p-6 sm:p-8 shadow-card divide-y divide-namora-line-soft">
+        <div className="faq-list reveal-stagger">
           {FAQ_ITEMS.map((item) => (
             <FAQItem
               key={item.id}
@@ -32,7 +30,7 @@ export function FAQSection() {
             />
           ))}
         </div>
-      </Container>
+      </div>
     </section>
   );
 }

@@ -1,126 +1,82 @@
 import React from 'react';
 import Link from 'next/link';
-import { Container } from './Container';
-import { FOOTER_DATA, CONTACT_DATA } from '@/lib/storefront-data';
 
 export function Footer() {
   return (
-    <footer className="border-t border-namora-line bg-namora-soft/60 text-namora-ink transition-colors duration-300">
-      <Container width="wide" className="py-12 sm:py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-12">
-          {/* Brand Column (Span 2 on desktop) */}
-          <div className="lg:col-span-2 space-y-4">
-            <Link
-              href="/"
-              className="font-luxury text-2xl font-bold tracking-[0.25em] text-namora-gold hover:text-namora-gold-hover transition inline-block"
-            >
+    <footer>
+      <div className="container">
+        <div className="footer-grid reveal">
+          <div className="footer-brand">
+            <Link className="logo" href="/">
               NAMORA
             </Link>
-            <p className="text-xs sm:text-sm text-namora-muted max-w-sm leading-relaxed font-light">
-              Personalized A4 wall frames, hand-finished on authentic Persian and oriental backgrounds.
-              Because some names deserve to be framed.
+            <p>
+              Personalized A4 wall frames, hand-finished on authentic Persian and oriental backgrounds. Because some
+              names deserve to be framed.
             </p>
-
-            {/* Social & Direct Contact Links */}
-            <div className="flex items-center gap-3 pt-2">
-              <a
-                href={CONTACT_DATA.whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="WhatsApp Concierge"
-                className="w-8 h-8 rounded-full border border-namora-line bg-namora-card flex items-center justify-center text-xs text-namora-gold hover:border-namora-gold hover:scale-105 transition"
-              >
+            <div className="footer-social">
+              <a href="https://wa.me/919305654028?text=Hi%20NAMORA" target="_blank" rel="noopener" title="WhatsApp">
                 ✆
               </a>
               <a
-                href={CONTACT_DATA.instagramUrl}
+                href="https://www.instagram.com/namoraworld/"
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener"
                 title="Instagram @namoraworld"
-                className="w-8 h-8 rounded-full border border-namora-line bg-namora-card flex items-center justify-center text-xs text-namora-gold hover:border-namora-gold hover:scale-105 transition"
               >
                 ◎
               </a>
-              <a
-                href={`mailto:${CONTACT_DATA.email}`}
-                title="Email Support"
-                className="w-8 h-8 rounded-full border border-namora-line bg-namora-card flex items-center justify-center text-xs text-namora-gold hover:border-namora-gold hover:scale-105 transition"
-              >
+              <a href="mailto:hello@namora.in" title="Email">
                 ✉
               </a>
             </div>
           </div>
 
-          {/* Shop Column */}
-          <div>
-            <h4 className="font-mono text-xs uppercase tracking-widest text-namora-gold font-semibold mb-4">
-              Shop Collections
-            </h4>
-            <ul className="space-y-2.5">
-              {FOOTER_DATA.shopLinks.map((link) => (
-                <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    className="text-xs text-namora-muted hover:text-namora-ink transition"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <div className="footer-col">
+            <h4>Shop</h4>
+            <div className="footer-links">
+              <a href="#designs">All Persian Frames</a>
+              <a href="#create">Personalize Frame</a>
+              <a href="#ready-to-ship">Ready-to-Ship ⚡</a>
+              <a href="#gallery">Real Works Gallery</a>
+              <Link href="/track-order">Track Order 📦</Link>
+            </div>
           </div>
 
-          {/* Support Column */}
-          <div>
-            <h4 className="font-mono text-xs uppercase tracking-widest text-namora-gold font-semibold mb-4">
-              Customer Care
-            </h4>
-            <ul className="space-y-2.5">
-              {FOOTER_DATA.supportLinks.map((link) => (
-                <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    className="text-xs text-namora-muted hover:text-namora-ink transition"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <div className="footer-col">
+            <h4>Help &amp; Info</h4>
+            <div className="footer-links">
+              <a href="#how-it-works">How It Works</a>
+              <a href="#testimonials">Customer Reviews</a>
+              <a href="#faq">FAQ</a>
+              <a href="#contact">Contact Us</a>
+            </div>
           </div>
 
-          {/* Legal / Policies Column */}
-          <div>
-            <h4 className="font-mono text-xs uppercase tracking-widest text-namora-gold font-semibold mb-4">
-              Our Policies
-            </h4>
-            <ul className="space-y-2.5">
-              {FOOTER_DATA.legalLinks.map((link) => (
-                <li key={link.label}>
-                  <Link
-                    href={link.href}
-                    className="text-xs text-namora-muted hover:text-namora-ink transition"
-                  >
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+          <div className="footer-col">
+            <h4>Direct WhatsApp</h4>
+            <p className="footer-wa-hint">Have a custom requirement, spelling check, or bulk gifting inquiry?</p>
+            <a
+              className="btn btn-whatsapp"
+              href="https://wa.me/919305654028?text=Hi%20NAMORA%2C%20I%20have%20a%20question"
+              target="_blank"
+              rel="noopener"
+              style={{ fontSize: '0.85rem', padding: '0.65rem 1rem' }}
+            >
+              Chat on WhatsApp
+            </a>
           </div>
         </div>
 
-        {/* Bottom Bar: Trust Badges & Copyright */}
-        <div className="mt-12 pt-8 border-t border-namora-line-soft flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-namora-muted">
-          <p>&copy; {new Date().getFullYear()} NAMORA. Handcrafted in India. All rights reserved.</p>
-          <div className="flex items-center gap-3 font-mono text-[11px] text-namora-muted/80">
-            <span>₹49 Deposit Booking</span>
+        <div className="footer-bottom">
+          <p>&copy; {new Date().getFullYear()} NAMORA. All rights reserved. Handcrafted with care in India.</p>
+          <div className="footer-bottom-links">
+            <Link href="/track-order">Track My Order</Link>
             <span>&bull;</span>
-            <span>Pan-India COD</span>
-            <span>&bull;</span>
-            <span>Free Remake Guarantee</span>
+            <a href="#contact">Support</a>
           </div>
         </div>
-      </Container>
+      </div>
     </footer>
   );
 }

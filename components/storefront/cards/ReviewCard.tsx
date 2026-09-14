@@ -1,6 +1,4 @@
 import React from 'react';
-import Image from 'next/image';
-import { Card, Badge } from '@/components/ui';
 import { TestimonialItem } from '@/lib/storefront-data';
 
 interface ReviewCardProps {
@@ -8,63 +6,40 @@ interface ReviewCardProps {
 }
 
 export function ReviewCard({ review }: ReviewCardProps) {
+  const photoSrc = review.photoThumb?.startsWith('/')
+    ? review.photoThumb
+    : `/${review.photoThumb || 'frame1.jpg'}`;
+
   return (
-    <Card
-      variant="standard"
-      className="p-6 flex flex-col justify-between h-full bg-namora-card border border-namora-line"
-    >
-      {/* Header Row: Stars & Verified Badge */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex text-amber-400 text-sm tracking-wider">
-            {'★'.repeat(review.stars)}
-          </div>
-          {review.verified && (
-            <Badge variant="success" size="sm">
-              ✓ Verified Buyer
-            </Badge>
-          )}
-        </div>
-
-        {/* Review Quote */}
-        <p className="text-xs sm:text-sm text-namora-ink font-light italic leading-relaxed mb-4">
-          {review.text}
-        </p>
+    <div className="testimonial-card">
+      <div className="review-header-row">
+        <div className="testimonial-stars">★★★★★</div>
+        <span className="verified-buyer-badge">✓ Verified Buyer</span>
       </div>
+      <p className="testimonial-text">&ldquo;{review.text}&rdquo;</p>
 
-      {/* Footer: Customer Details & Photo Thumbnail */}
-      <div className="pt-4 border-t border-namora-line-soft">
-        <div className="flex items-center gap-3">
-          {review.photoThumb && (
-            <div className="relative w-11 h-14 rounded overflow-hidden border border-namora-line-soft flex-shrink-0">
-              <Image
-                src={review.photoThumb}
-                alt={review.productTag}
-                fill
-                className="object-cover"
-                sizes="44px"
-              />
-            </div>
-          )}
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-namora-soft border border-namora-line flex items-center justify-center text-[10px] font-semibold text-namora-gold">
-                {review.avatar}
-              </div>
-              <span className="text-xs font-medium text-namora-ink truncate">
-                {review.name}
-              </span>
-            </div>
-            <p className="text-[10px] text-namora-muted truncate mt-0.5">
-              {review.location}
-            </p>
-            <p className="text-[10px] text-namora-gold/80 font-mono truncate mt-0.5">
-              {review.productTag}
-            </p>
+      {review.photoThumb && (
+        <div className="review-photo-thumb-wrap">
+          <img
+            src={photoSrc}
+            alt={`${review.productTag} review`}
+            className="review-photo-thumb"
+            loading="lazy"
+          />
+          <div>
+            <div className="review-product-tag">{review.productTag}</div>
+            <div className="review-date">{review.deliveredDate}</div>
           </div>
         </div>
+      )}
+
+      <div className="testimonial-author" style={{ marginTop: '0.85rem' }}>
+        <div className="testimonial-avatar">{review.avatar}</div>
+        <div>
+          <div className="testimonial-name">{review.name}</div>
+          <div className="testimonial-loc">{review.location}</div>
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }

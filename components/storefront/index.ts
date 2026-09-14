@@ -8,4 +8,6 @@ export * from './ReviewsSection';
 export * from './StorySection';
 export * from './FAQSection';
 export * from './ContactSection';
+export * from './StickyMobileBar';
+export * from './FloatingWhatsApp';
 export * from './cards';

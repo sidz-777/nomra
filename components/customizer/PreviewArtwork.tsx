@@ -1,5 +1,6 @@
+'use client';
+
 import React from 'react';
-import Image from 'next/image';
 import {
   CustomizationLanguage,
   CustomizationFont,
@@ -57,45 +58,37 @@ export function PreviewArtwork({
     o.textShadow
   );
 
-  return (
-    <div className="relative w-full h-full overflow-hidden bg-namora-card select-none">
-      {/* Background Persian Artwork */}
-      <Image
-        src={design.assetPath}
-        alt={design.title}
-        fill
-        priority
-        className="object-cover pointer-events-none"
-        sizes="(max-width: 1024px) 100vw, 500px"
-      />
+  const imageSrc = design.image ? `/${design.image}` : design.assetPath;
 
-      {/* Positioned Live Calligraphy Overlay */}
+  return (
+    <>
+      <img
+        className="product-img"
+        src={imageSrc}
+        alt={design.title}
+        loading="eager"
+      />
       <div
-        className="absolute flex items-center justify-center pointer-events-none text-center"
+        className="overlay-layer"
         style={{
           left: `${o.posX}%`,
           top: `${o.posY}%`,
           width: `${o.maxWidth}%`,
-          transform: 'translate(-50%, -50%)',
         }}
       >
         <div
+          className="overlay-text"
           dir={isArabic ? 'rtl' : 'ltr'}
-          className="w-full text-center tracking-wide break-words transition-all duration-150"
           style={{
             fontFamily,
             fontSize: `${fontSize}px`,
             fontWeight,
-            lineHeight: 1.3,
             ...inkStyle,
           }}
         >
           {nameText}
         </div>
       </div>
-
-      {/* Real Museum-Grade Acrylic Glass Glare Effect */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/8 to-transparent pointer-events-none" />
-    </div>
+    </>
   );
 }

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { PERSIAN_DESIGNS, PersianDesignItem } from '@/lib/storefront-data';
-import { Modal, Button, Badge } from '@/components/ui';
+import { Modal, Button } from '@/components/ui';
 
 interface DesignSelectorProps {
   selectedDesign: PersianDesignItem;
@@ -17,48 +17,17 @@ export function DesignSelector({
   const [modalOpen, setModalOpen] = useState(false);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs uppercase tracking-wider font-semibold text-namora-ink">
-          1. Selected Frame Design
-        </span>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="text-xs font-semibold text-namora-gold hover:text-namora-gold-hover transition underline underline-offset-2"
-        >
-          Change Design ({PERSIAN_DESIGNS.length} available)
-        </button>
-      </div>
-
-      {/* Active Design Bar */}
+    <div>
+      <span className="label">1. Selected Frame</span>
       <div
+        className="selected-product-name cursor-pointer"
+        id="selectedProductName"
         onClick={() => setModalOpen(true)}
-        className="p-3.5 rounded-lg border border-namora-line bg-namora-soft hover:border-namora-gold/60 transition cursor-pointer flex items-center justify-between gap-3 shadow-subtle group"
+        title="Click to switch frame design"
+        style={{ cursor: 'pointer' }}
       >
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="relative w-9 h-12 rounded border border-black/40 overflow-hidden flex-shrink-0 bg-namora-card">
-            <Image
-              src={selectedDesign.assetPath}
-              alt={selectedDesign.title}
-              fill
-              className="object-cover"
-              sizes="36px"
-            />
-          </div>
-          <div className="min-w-0">
-            <p className="font-hero text-sm font-medium text-namora-ink group-hover:text-namora-gold transition truncate">
-              {selectedDesign.title}
-            </p>
-            <span className="text-[10px] text-namora-muted font-mono uppercase tracking-wider">
-              {selectedDesign.categoryLabel}
-            </span>
-          </div>
-        </div>
-
-        <Badge variant="gold" size="sm" className="flex-shrink-0">
-          Active
-        </Badge>
+        {selectedDesign.title}
+        <span style={{ float: 'right', fontSize: '0.8rem', fontWeight: 500, opacity: 0.8 }}>Change ▾</span>
       </div>
 
       {/* Modal Dialog with all 21 Designs */}

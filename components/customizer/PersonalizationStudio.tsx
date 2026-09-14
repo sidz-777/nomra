@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Container } from '@/components/layout/Container';
-import { SectionHeading, Toast, ToastType } from '@/components/ui';
+import React, { useState, useEffect } from 'react';
+import { Toast, ToastType } from '@/components/ui';
 import { PERSIAN_DESIGNS, PersianDesignItem } from '@/lib/storefront-data';
 import {
   CustomizationState,
@@ -88,6 +87,25 @@ export function PersonalizationStudio({
     type: 'success',
     message: '',
   });
+
+  // Listen for design selection events from gallery
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      const designId = customEvent.detail;
+      const found = PERSIAN_DESIGNS.find((d) => d.id === designId);
+      if (found) {
+        setState((prev) => ({
+          ...prev,
+          productId: found.id,
+          designId: found.id,
+          activeDesign: found,
+        }));
+      }
+    };
+    window.addEventListener('namora-select-design', handler);
+    return () => window.removeEventListener('namora-select-design', handler);
+  }, []);
 
   // Handler: Select Design
   const handleSelectDesign = (design: PersianDesignItem) => {
@@ -207,7 +225,7 @@ export function PersonalizationStudio({
     }
   };
 
-  // Handler: Add to Cart (Phase 6 preparation & validation)
+  // Handler: Add to Cart
   const handleAddToCart = () => {
     const { isValid, errors: valErrors } = validateCustomization(state);
     if (!isValid) {
@@ -227,7 +245,6 @@ export function PersonalizationStudio({
       gift: state.gift,
     });
 
-    // Call optional parent handler or show success feedback
     if (onAddToCartSuccess) {
       onAddToCartSuccess(state);
     }
@@ -276,32 +293,26 @@ export function PersonalizationStudio({
   };
 
   return (
-    <section id="create" className="py-16 sm:py-24 border-b border-namora-line scroll-mt-20">
-      <Container width="wide">
-        <SectionHeading
-          eyebrow="Bespoke Calligraphy"
-          title="Personalize Your Frame"
-          arabicTitle="خصّص لوحتك بالخط العربي الفاخر"
-          subtitle="Enter the name exactly as you would like it inscribed. Preview live on authentic Persian artwork and customize every detail with museum-grade precision."
-        />
+    <section id="create" className="section">
+      <div className="container">
+        <div className="section-head reveal">
+          <div className="eyebrow" style={{ justifyContent: 'center' }}>Customize</div>
+          <h2>Personalize Your Frame</h2>
+          <p>Enter the name exactly as you&apos;d like it written. Switch between English and Arabic anytime.</p>
+        </div>
 
-        {/* Two-Column Studio Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start max-w-7xl mx-auto">
-          {/* Left Column: Interactive Controls Panel */}
-          <div className="lg:col-span-7 space-y-6 p-6 sm:p-8 rounded-2xl border border-namora-line bg-namora-card/70 shadow-card">
-            {/* 1. Design Selector */}
+        <div className="builder-grid reveal">
+          <div className="panel">
             <DesignSelector
               selectedDesign={state.activeDesign}
               onSelectDesign={handleSelectDesign}
             />
 
-            {/* 2. Language Selector */}
             <LanguageSelector
               language={state.language}
               onChangeLanguage={handleChangeLanguage}
             />
 
-            {/* 3. English Name Input */}
             <NameInput
               value={state.englishName}
               onChange={handleEnglishNameChange}
@@ -309,7 +320,6 @@ export function PersonalizationStudio({
               error={errors.englishName}
             />
 
-            {/* 4. Arabic Name Editor (shown when Arabic mode is selected) */}
             {state.language === 'ar' && (
               <ArabicNameEditor
                 value={state.arabicName}
@@ -319,7 +329,6 @@ export function PersonalizationStudio({
               />
             )}
 
-            {/* 5. Ink Finish Selector */}
             <FinishSelector
               ink={state.ink}
               customColor={state.customInkColor}
@@ -327,7 +336,6 @@ export function PersonalizationStudio({
               onChangeCustomColor={handleChangeCustomColor}
             />
 
-            {/* 6. Typography, Text Size & Frame Dimensions */}
             <CustomizationOptions
               font={state.font}
               textSize={state.textSize}
@@ -335,7 +343,6 @@ export function PersonalizationStudio({
               onChangeTextSize={handleChangeTextSize}
             />
 
-            {/* 7. Summary, Packaging Addon, Estimator, and Actions */}
             <CustomizerSummary
               gift={state.gift}
               onChangeGift={handleChangeGift}
@@ -348,23 +355,20 @@ export function PersonalizationStudio({
             />
           </div>
 
-          {/* Right Column: Live Frame Preview Stage (Sticky on desktop) */}
-          <div className="lg:col-span-5 lg:sticky lg:top-24">
-            <FramePreview
-              design={state.activeDesign}
-              language={state.language}
-              englishName={state.englishName}
-              arabicName={state.arabicName}
-              font={state.font}
-              ink={state.ink}
-              customInkColor={state.customInkColor}
-              textSize={state.textSize}
-              viewMode={state.viewMode}
-              onChangeViewMode={handleChangeViewMode}
-            />
-          </div>
+          <FramePreview
+            design={state.activeDesign}
+            language={state.language}
+            englishName={state.englishName}
+            arabicName={state.arabicName}
+            font={state.font}
+            ink={state.ink}
+            customInkColor={state.customInkColor}
+            textSize={state.textSize}
+            viewMode={state.viewMode}
+            onChangeViewMode={handleChangeViewMode}
+          />
         </div>
-      </Container>
+      </div>
 
       {/* Toast Feedback */}
       <Toast

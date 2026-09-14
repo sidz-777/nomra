@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { Field, Input } from '@/components/ui';
 
 interface NameInputProps {
   value: string;
@@ -19,47 +18,38 @@ export function NameInput({
   error,
 }: NameInputProps) {
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-1.5">
-        <span className="text-xs uppercase tracking-wider font-semibold text-namora-ink">
-          3. English Name
-        </span>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] text-namora-gold font-mono uppercase tracking-wider">
-            ✦ Quick Try:
-          </span>
-          <div className="flex flex-wrap gap-1">
-            {QUICK_NAMES.map((name) => {
-              const isActive = value.trim().toLowerCase() === name.toLowerCase();
-              return (
-                <button
-                  key={name}
-                  type="button"
-                  onClick={() => onSelectQuickName(name)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-medium transition ${
-                    isActive
-                      ? 'bg-namora-gold text-black font-semibold shadow-sm'
-                      : 'bg-namora-soft text-namora-muted hover:text-namora-ink border border-namora-line-soft'
-                  }`}
-                >
-                  {name}
-                </button>
-              );
-            })}
-          </div>
+    <div>
+      <div className="quick-names-wrap">
+        <div className="quick-names-header">
+          <label className="label" htmlFor="nameInputEn" style={{ marginBottom: 0 }}>
+            3. English Name
+          </label>
+          <span className="quick-try-hint">✦ Quick Try:</span>
+        </div>
+        <div className="quick-names-row">
+          {QUICK_NAMES.map((name) => {
+            const isActive = value.trim().toLowerCase() === name.toLowerCase();
+            return (
+              <button
+                key={name}
+                type="button"
+                className={`quick-name-btn ${isActive ? 'active' : ''}`}
+                onClick={() => onSelectQuickName(name)}
+              >
+                {name}
+              </button>
+            );
+          })}
         </div>
       </div>
-
-      <Field error={error}>
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="e.g. Fatima or Zayd"
-          error={!!error}
-          aria-label="English name to personalize"
-          className="font-medium text-sm sm:text-base tracking-wide"
-        />
-      </Field>
+      <input
+        className="input"
+        id="nameInputEn"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. Fatima"
+      />
+      {error && <p style={{ color: 'var(--error)', fontSize: '0.8rem', marginTop: '4px' }}>{error}</p>}
     </div>
   );
 }

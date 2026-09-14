@@ -12,6 +12,8 @@ import {
   StorySection,
   FAQSection,
   ContactSection,
+  StickyMobileBar,
+  FloatingWhatsApp,
 } from '@/components/storefront';
 import { PersonalizationStudio } from '@/components/customizer';
 
@@ -53,6 +55,12 @@ export default function HomePage() {
 
       {/* 11. Direct Concierge & Inquiry Section */}
       <ContactSection />
+
+      {/* Sticky Mobile Conversion Bar */}
+      <StickyMobileBar />
+
+      {/* Floating Pulse WhatsApp Button */}
+      <FloatingWhatsApp />
     </PageShell>
   );
 }
