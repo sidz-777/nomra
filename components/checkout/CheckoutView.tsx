@@ -148,7 +148,7 @@ export function CheckoutView() {
           Your Cart is Empty
         </h2>
         <p className="text-xs sm:text-sm text-namora-muted max-w-sm mx-auto leading-relaxed">
-          You haven't customized any frames yet. Design an authentic Persian calligraphy frame or select a ready-stock edition to get started.
+          You haven&apos;t customized any frames yet. Design an authentic Persian calligraphy frame or select a ready-stock edition to get started.
         </p>
         <Link href="/#create" className="inline-block mt-4">
           <Button variant="primary" size="md" className="shadow-luxury">

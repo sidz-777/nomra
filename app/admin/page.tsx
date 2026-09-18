@@ -849,14 +849,18 @@ export default function AdminDashboardPage() {
                                 onChange={(e) => handleStatusChange(o.id, e.target.value)}
                                 className="bg-[#0E0D0C] border border-[#2D2722] focus:border-[#D4AF6A] rounded-lg px-2.5 py-1 text-xs font-mono outline-none text-[#F5EFE6]"
                               >
-                                <option value="pending_payment">⏳ Awaiting Deposit</option>
-                                <option value="confirmed">💳 Confirmed &amp; Paid</option>
-                                <option value="processing">🏭 Processing</option>
+                                <option value="pending_advance">⏳ Awaiting Deposit</option>
+                                <option value="pending_payment">⏳ Awaiting Deposit (Legacy)</option>
+                                <option value="advance_paid">💳 Deposit Paid</option>
+                                <option value="confirmed">💳 Confirmed &amp; Paid (Legacy)</option>
+                                <option value="in_production">🏭 In Production</option>
+                                <option value="processing">🏭 Processing (Legacy)</option>
                                 <option value="personalization_review">🎨 Studio Review</option>
                                 <option value="ready_to_ship">📦 Ready to Ship</option>
-                                <option value="shipped">🚚 Dispatched</option>
+                                <option value="dispatched">🚚 Dispatched with Courier</option>
+                                <option value="shipped">🚚 Shipped (Legacy)</option>
                                 <option value="out_for_delivery">🛵 Out for Delivery</option>
-                                <option value="delivered">✅ Delivered</option>
+                                <option value="delivered">✅ Delivered &amp; Completed</option>
                                 <option value="cancelled">❌ Cancelled</option>
                                 <option value="returned">🔄 Returned</option>
                               </select>
@@ -1227,7 +1231,7 @@ export default function AdminDashboardPage() {
                             🎁 <strong>Gift Card (+₹69)</strong>: To {item.gift_to || 'Recipient'} from{' '}
                             {item.gift_from || 'Sender'}
                             <br />
-                            <em className="text-[#A39684]">"{item.gift_message || 'Best wishes!'}"</em>
+                            <em className="text-[#A39684]">&quot;{item.gift_message || 'Best wishes!'}&quot;</em>
                           </div>
                         )}
                       </div>

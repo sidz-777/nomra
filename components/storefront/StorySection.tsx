@@ -25,7 +25,7 @@ export function StorySection() {
             <p>Each piece is hand-finished on authentic Persian and oriental aesthetic backgrounds, carefully selected
               for their warmth and texture. From the first sketch to the final wrap, everything is done with intention.
             </p>
-            <p>Whether it's a gift for a newborn, a milestone, or a home you're building — we're honored to be a small
+            <p>Whether it&apos;s a gift for a newborn, a milestone, or a home you&apos;re building — we&apos;re honored to be a small
               part of your story.</p>
 
             <div className="about-stats">

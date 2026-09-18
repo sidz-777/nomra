@@ -1,33 +1,72 @@
 import { NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 import { CreateOrderPayload, CreateOrderResponse } from '@/lib/checkout/checkout-types';
 import {
   validateCheckoutForm,
   validateCheckoutItems,
+  normalizeIndianMobile,
 } from '@/lib/checkout/checkout-validation';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { READY_STOCK_PRODUCTS, PERSIAN_DESIGNS } from '@/lib/storefront-data';
+import { PERSIAN_DESIGNS } from '@/lib/storefront-data';
 
 export const dynamic = 'force-dynamic';
-
-// In-memory idempotency cache (keyed by idempotencyKey)
-const idempotencyStore = new Map<string, CreateOrderResponse>();
 
 export async function POST(req: Request) {
   try {
     const body: CreateOrderPayload = await req.json();
     const { customer, address, items, gift, idempotencyKey } = body;
 
-    // 1. Idempotency Check: prevent duplicate submissions
-    if (idempotencyKey && idempotencyStore.has(idempotencyKey)) {
-      return NextResponse.json(idempotencyStore.get(idempotencyKey));
+    const supabase = createAdminClient();
+
+    // 1. Authoritative Database Idempotency Check (Never rely on in-memory memory map)
+    if (idempotencyKey && idempotencyKey.trim().length > 0) {
+      const key = idempotencyKey.trim();
+
+      // Check primary checkout_requests table
+      const { data: existingReq, error: idempErr } = await supabase
+        .from('checkout_requests')
+        .select('response_payload, status')
+        .eq('idempotency_key', key)
+        .maybeSingle();
+
+      if (!idempErr && existingReq && existingReq.status === 'completed' && existingReq.response_payload) {
+        return NextResponse.json(existingReq.response_payload);
+      } else if (idempErr && idempErr.code === 'PGRST205') {
+        // Table checkout_requests not yet migrated on live Supabase; check database settings store
+        const { data: setRow, error: setErr } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', `idemp:${key}`)
+          .maybeSingle();
+
+        if (setErr) {
+          console.error('Database idempotency check failed in settings store:', setErr.message);
+          return NextResponse.json(
+            { success: false, error: 'Database idempotency check unavailable. Order cannot be securely verified.' },
+            { status: 503 }
+          );
+        }
+
+        if (setRow && setRow.value) {
+          try {
+            const cached = JSON.parse(setRow.value);
+            return NextResponse.json(cached);
+          } catch {}
+        }
+      } else if (idempErr) {
+        // Database offline or query failure: strictly FAIL CLOSED to prevent duplicate orders
+        console.error('Database idempotency check error:', idempErr.message);
+        return NextResponse.json(
+          { success: false, error: 'Database idempotency check unavailable. Order placement aborted.' },
+          { status: 503 }
+        );
+      }
     }
 
-    // 2. Server-side validation
+    // 2. Server-side form validation and sanitization
+    const normalizedPhone = normalizeIndianMobile(customer?.phone || '');
     const formValidation = validateCheckoutForm({
       name: customer?.name,
-      phone: customer?.phone,
+      phone: normalizedPhone,
       email: customer?.email,
       addressLine1: address?.addressLine1,
       addressLine2: address?.addressLine2,
@@ -54,27 +93,22 @@ export async function POST(req: Request) {
     }
 
     // 3. Server-Authoritative Price Calculation
-    // Never trust client prices. Query catalog overrides and defaults.
-    const overridesPath = path.join(process.cwd(), 'catalog_overrides.json');
-    let priceOverrides: Record<string, any> = {};
-    if (fs.existsSync(overridesPath)) {
-      try {
-        priceOverrides = JSON.parse(fs.readFileSync(overridesPath, 'utf8'));
-      } catch {
-        priceOverrides = {};
-      }
-    }
+    // Never trust client prices, static files, or disk overrides during checkout.
+    // Price and inventory MUST be verified directly against the Supabase database.
+    // If Supabase is unavailable, FAIL CLOSED.
+    const { data: productsDb, error: prodErr } = await supabase
+      .from('products')
+      .select('id, title, price, deposit_price, cod_price, in_stock, stock_quantity, is_stock_managed, image_url, category_label');
 
-    // Load products from Supabase or fallback
-    let productsDb: any[] = [];
-    try {
-      const supabase = createAdminClient();
-      const { data } = await supabase.from('products').select('*');
-      if (data && Array.isArray(data)) {
-        productsDb = data;
-      }
-    } catch {
-      // Fallback
+    if (prodErr || !productsDb || !Array.isArray(productsDb) || productsDb.length === 0) {
+      console.error('Authoritative pricing error: failed to fetch products from Supabase:', prodErr?.message);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Authoritative pricing service currently unavailable. Please try again in a few moments.',
+        },
+        { status: 503 }
+      );
     }
 
     let subtotal = 0;
@@ -85,24 +119,60 @@ export async function POST(req: Request) {
 
     for (const item of items) {
       const qty = Math.max(1, Math.floor(item.quantity || 1));
-      const pId = item.productId;
+      const pId = item.productId || (item as any).product_id;
 
-      const dbMatch = productsDb.find((p) => p.id === pId);
-      const override = priceOverrides[pId];
+      if (!pId) {
+        return NextResponse.json(
+          { success: false, error: 'Product ID is missing from cart item.' },
+          { status: 400 }
+        );
+      }
 
-      const basePrice =
-        override?.price !== undefined
-          ? Number(override.price)
-          : dbMatch?.price !== undefined
-          ? Number(dbMatch.price)
-          : 499;
+      // Resolve canonical database ID for Persian designs if slug passed
+      let lookupId = pId;
+      const designIdx = PERSIAN_DESIGNS.findIndex((d) => d.id === pId);
+      if (designIdx >= 0) {
+        lookupId = `design-${designIdx + 1}`;
+      }
 
-      const baseDeposit =
-        override?.deposit_price !== undefined
-          ? Number(override.deposit_price)
-          : dbMatch?.deposit_price !== undefined
-          ? Number(dbMatch.deposit_price)
-          : 49;
+      const dbMatch = productsDb.find((p) => p.id === lookupId || p.id === pId);
+
+      // Fail closed if product does not exist in authoritative database
+      if (!dbMatch) {
+        return NextResponse.json(
+          { success: false, error: `Product "${pId}" does not exist or has been discontinued.` },
+          { status: 400 }
+        );
+      }
+
+      // Check product active status (in_stock)
+      if (dbMatch.in_stock === false) {
+        return NextResponse.json(
+          { success: false, error: `Product "${dbMatch.title}" is currently unavailable.` },
+          { status: 400 }
+        );
+      }
+
+      // Check stock if inventory is managed
+      if (dbMatch.is_stock_managed && typeof dbMatch.stock_quantity === 'number' && dbMatch.stock_quantity < qty) {
+        return NextResponse.json(
+          { success: false, error: `Insufficient stock for "${dbMatch.title}". Only ${dbMatch.stock_quantity} available.` },
+          { status: 400 }
+        );
+      }
+
+      // Authoritative Price: database ONLY. ZERO arbitrary fallback.
+      const basePrice = Number(dbMatch.price);
+      if (isNaN(basePrice) || basePrice <= 0) {
+        return NextResponse.json(
+          { success: false, error: `Authoritative price unavailable for product "${pId}".` },
+          { status: 400 }
+        );
+      }
+
+      const baseDeposit = dbMatch.deposit_price !== undefined && dbMatch.deposit_price !== null
+        ? Number(dbMatch.deposit_price)
+        : 49;
 
       const hasItemGift = gift?.enabled || false;
 
@@ -114,10 +184,13 @@ export async function POST(req: Request) {
         flattenedItems.push({
           productId: pId,
           product_id: pId,
-          productTitle: item.title || dbMatch?.title || 'A4 Handmade Frame',
-          productImage: item.image || dbMatch?.image_url || 'design1.jpg',
+          basePrice,
+          deposit: baseDeposit,
+          cod: basePrice - baseDeposit,
+          productTitle: item.title || dbMatch.title || 'A4 Handmade Frame',
+          productImage: item.image || dbMatch.image_url || 'design1.jpg',
           isReadyMade: item.productType === 'ready_stock',
-          categoryLabel: item.categoryLabel || dbMatch?.category_label || 'A4 Frame',
+          categoryLabel: item.categoryLabel || dbMatch.category_label || 'A4 Frame',
           englishName: item.customization?.englishName || '',
           arabicName: item.customization?.arabicName || '',
           inkLabel: item.customization?.finishLabel || 'Obsidian Black',
@@ -147,7 +220,7 @@ export async function POST(req: Request) {
       .filter(Boolean)
       .join(', ');
 
-    const phoneDigits = customer.phone.replace(/\D/g, '');
+    const phoneDigits = normalizedPhone;
     const pincodeDigits = address.pincode.replace(/\D/g, '');
 
     const pCustomer = {
@@ -162,54 +235,153 @@ export async function POST(req: Request) {
     let orderId: string | null = null;
     let orderNumber: string | null = null;
 
-    // 4. Invoke PostgreSQL RPC create_secure_order (or backend proxy)
+    // 4. Primary: Invoke PostgreSQL RPC create_secure_order
     try {
       const supabase = createAdminClient();
       const { data: rpcData, error: rpcErr } = await supabase.rpc('create_secure_order', {
         p_customer: pCustomer,
         p_items: flattenedItems,
+        p_idempotency_key: idempotencyKey || null,
       });
 
       if (!rpcErr && rpcData && rpcData.success) {
         orderId = rpcData.order_id;
         orderNumber = rpcData.order_number;
+      } else if (rpcErr) {
+        console.warn('create_secure_order RPC note:', rpcErr.message);
       }
     } catch (e: any) {
-      console.warn('Direct RPC call error, attempting proxy to server.js:', e?.message);
+      console.warn('Direct RPC call note:', e?.message);
     }
 
-    // If direct RPC failed (e.g. anon role or network), proxy to server.js backend
-    if (!orderNumber) {
+    // 5. Secondary: Direct Database Insert if RPC not yet deployed to remote Supabase
+    if (!orderId || !orderNumber) {
       try {
-        const proxyRes = await fetch('http://localhost:3300/api/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customer: pCustomer,
-            items: flattenedItems,
-            giftPackaging: gift?.enabled,
-          }),
-        });
+        const supabase = createAdminClient();
 
-        if (proxyRes.ok) {
-          const proxyData = await proxyRes.json();
-          if (proxyData.success) {
-            orderId = proxyData.order_id;
-            orderNumber = proxyData.order_number;
+        // Atomically claim idempotency key before creating order
+        if (idempotencyKey && idempotencyKey.trim().length > 0) {
+          const key = idempotencyKey.trim();
+
+          const { error: crClaimErr } = await supabase
+            .from('checkout_requests')
+            .insert({
+              idempotency_key: key,
+              status: 'processing',
+            });
+
+          if (crClaimErr && crClaimErr.code === '23505') {
+            // Concurrent request already claimed this key! Wait for completion
+            for (let wait = 0; wait < 12; wait++) {
+              await new Promise((r) => setTimeout(r, 250));
+              const { data: existing } = await supabase
+                .from('checkout_requests')
+                .select('status, response_payload')
+                .eq('idempotency_key', key)
+                .maybeSingle();
+
+              if (existing && existing.status === 'completed' && existing.response_payload) {
+                return NextResponse.json(existing.response_payload);
+              }
+            }
+          } else if (crClaimErr && crClaimErr.code === 'PGRST205') {
+            // Table not yet migrated: use persistent database settings table for atomic claim
+            const { error: setClaimErr } = await supabase
+              .from('settings')
+              .insert({
+                key: `idemp_claim:${key}`,
+                value: 'processing',
+                description: 'Atomic checkout idempotency lock',
+              });
+
+            if (setClaimErr && setClaimErr.code === '23505') {
+              // Another request is processing this key! Wait for completed response payload
+              for (let wait = 0; wait < 12; wait++) {
+                await new Promise((r) => setTimeout(r, 250));
+                const { data: setRow } = await supabase
+                  .from('settings')
+                  .select('value')
+                  .eq('key', `idemp:${key}`)
+                  .maybeSingle();
+
+                if (setRow && setRow.value) {
+                  try {
+                    const cached = JSON.parse(setRow.value);
+                    return NextResponse.json(cached);
+                  } catch {}
+                }
+              }
+            }
           }
         }
-      } catch (err: any) {
-        console.warn('Proxy to server.js note:', err?.message);
+
+        const rnd = Math.floor(1000 + Math.random() * 9000);
+        const candidateNumber = `NAM-${rnd}`;
+
+        const { data: newOrder, error: insertErr } = await supabase
+          .from('orders')
+          .insert({
+            order_number: candidateNumber,
+            customer_name: customer.name.trim(),
+            phone: phoneDigits,
+            address: fullAddress,
+            city: address.city.trim(),
+            state: address.state.trim(),
+            pincode: pincodeDigits,
+            total_amount: grandTotal,
+            deposit_amount: totalDeposit,
+            cod_amount: codAmount,
+            status: 'pending_advance',
+            payment_method: 'deposit_cod',
+            payment_status: 'unpaid',
+          })
+          .select('id, order_number')
+          .single();
+
+        if (!insertErr && newOrder) {
+          orderId = newOrder.id;
+          orderNumber = newOrder.order_number;
+
+          // Insert order items
+          const dbItems = flattenedItems.map((it) => ({
+            order_id: orderId,
+            product_id: it.productId,
+            product_title: it.productTitle,
+            product_image: it.productImage,
+            is_ready_made: it.isReadyMade,
+            category_label: it.categoryLabel,
+            english_name: it.englishName,
+            arabic_name: it.arabicName,
+            ink_style: it.inkLabel,
+            font_style: it.fontLabel,
+            text_size: it.textSizeLabel,
+            has_gift: Boolean(it.gift),
+            gift_to: it.gift?.to || '',
+            gift_from: it.gift?.from || '',
+            gift_message: it.gift?.message || '',
+            gift_price: it.gift ? 69 : 0,
+            price: it.basePrice,
+            deposit: it.deposit,
+            cod: it.cod,
+          }));
+
+          await supabase.from('order_items').insert(dbItems);
+        }
+      } catch (dbErr: any) {
+        console.error('Direct database insert exception:', dbErr?.message);
       }
     }
 
-    // Fallback order generation if backend is unavailable
-    if (!orderNumber) {
-      const rnd = Math.floor(1000 + Math.random() * 9000);
-      orderNumber = 'NAM-' + rnd;
-    }
-    if (!orderId) {
-      orderId = 'order_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    // Zero Phantom Orders: If order could not be persisted to database, FAIL CLOSED immediately
+    if (!orderId || !orderNumber) {
+      console.error('Order creation failed: Database returned no order identifier.');
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unable to establish a secure booking with the order repository. Please verify your connection and try again.',
+        },
+        { status: 500 }
+      );
     }
 
     const responsePayload: CreateOrderResponse = {
@@ -232,9 +404,53 @@ export async function POST(req: Request) {
       },
     };
 
-    // Cache response for idempotency
-    if (idempotencyKey) {
-      idempotencyStore.set(idempotencyKey, responsePayload);
+    // Record completed response authoritatively in database
+    if (idempotencyKey && idempotencyKey.trim().length > 0) {
+      const key = idempotencyKey.trim();
+      const { error: crErr } = await supabase
+        .from('checkout_requests')
+        .upsert(
+          {
+            idempotency_key: key,
+            order_id: orderId,
+            order_number: orderNumber,
+            status: 'completed',
+            response_payload: responsePayload,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'idempotency_key' }
+        );
+
+      if (crErr) {
+        if (crErr.code === 'PGRST205') {
+          // Table not yet created in Supabase: persist into database settings table
+          const { error: setErr } = await supabase
+            .from('settings')
+            .upsert(
+              {
+                key: `idemp:${key}`,
+                value: JSON.stringify(responsePayload),
+                description: `Authoritative checkout idempotency record for ${orderNumber}`,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'key' }
+            );
+
+          if (setErr) {
+            console.error('Failed to record idempotency in database settings store:', setErr.message);
+            return NextResponse.json(
+              { success: false, error: 'Database idempotency persistence failed. Order aborted to prevent duplicate charges.' },
+              { status: 500 }
+            );
+          }
+        } else {
+          console.error('Failed to record idempotency in checkout_requests:', crErr.message);
+          return NextResponse.json(
+            { success: false, error: 'Database idempotency persistence failed. Order aborted to prevent duplicate charges.' },
+            { status: 500 }
+          );
+        }
+      }
     }
 
     return NextResponse.json(responsePayload);

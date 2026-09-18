@@ -28,9 +28,6 @@ export default function AdminLoginPage() {
         setErrorMsg(error.message || 'Invalid email or password');
         setLoading(false);
       } else if (data?.session) {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('namora_admin_demo');
-        }
         router.push('/admin');
       } else {
         setErrorMsg('Authentication failed. Please check credentials.');
@@ -41,13 +38,6 @@ export default function AdminLoginPage() {
       setErrorMsg(err?.message || 'Network error connecting to authentication provider.');
       setLoading(false);
     }
-  };
-
-  const handleDemoBypass = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('namora_admin_demo', 'true');
-    }
-    router.push('/admin');
   };
 
   return (
@@ -114,19 +104,8 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        {/* Dev Demo Bypass Chip */}
-        <div className="mt-6 pt-6 border-t border-[#2D2722]">
-          <button
-            type="button"
-            onClick={handleDemoBypass}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-mono text-[#D4AF6A] bg-[#D4AF6A]/10 hover:bg-[#D4AF6A]/20 border border-[#D4AF6A]/30 transition-all cursor-pointer"
-          >
-            ⚡ Quick Preview (Dev Demo Bypass)
-          </button>
-        </div>
-
         {/* Return to Customer Storefront */}
-        <div className="mt-6">
+        <div className="mt-6 pt-6 border-t border-[#2D2722]">
           <Link
             href="/"
             className="text-xs font-mono text-[#A39684] hover:text-[#D4AF6A] transition-colors inline-flex items-center gap-1.5"

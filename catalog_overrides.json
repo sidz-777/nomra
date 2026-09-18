@@ -10,7 +10,7 @@
     "price": 499,
     "deposit_price": 49,
     "cod_price": 450,
-    "updated_at": "2026-09-13T12:55:49.053Z",
+    "updated_at": "2026-09-18T21:15:18.719Z",
     "dbPersisted": true
   },
   "car-2": {
@@ -19,5 +19,10 @@
     "cod_price": 240,
     "updated_at": "2026-09-12T19:04:20.740Z",
     "dbPersisted": true
+  },
+  "sport-1": {
+    "stock_quantity": 5,
+    "in_stock": true,
+    "updated_at": "2026-09-18T20:34:59.827Z"
   }
 }

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logAdminActivity } from '@/lib/admin/audit';
-import { adminOrdersStore } from '@/lib/admin/order-memory-store';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  // 1. Strict Server-Side Authentication & Authorization Guard
+  const auth = await requireAdmin(request, ['owner', 'admin', 'staff']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const body = await request.json();
     const {
@@ -14,7 +20,6 @@ export async function POST(request: NextRequest) {
       tracking_number = '',
       tracking_url = '',
       mark_shipped = false,
-      admin_user = 'admin',
     } = body;
 
     if (!order_id) {
@@ -33,22 +38,6 @@ export async function POST(request: NextRequest) {
       if (data?.id) targetId = data.id;
     }
 
-    // 1. Check duplicate AWB tracking numbers
-    let duplicateWarning: string | null = null;
-    if (tracking_number && tracking_number.trim()) {
-      const tTrim = tracking_number.trim();
-      const { data: dupOrders } = await supabase
-        .from('orders')
-        .select('order_number')
-        .eq('tracking_number', tTrim)
-        .neq('id', targetId);
-
-      if (dupOrders && dupOrders.length > 0) {
-        duplicateWarning = `Warning: AWB "${tracking_number}" is already attached to order ${dupOrders[0].order_number}.`;
-      }
-    }
-
-    // 2. Prepare patch data
     const nowIso = new Date().toISOString();
     const patchData: Record<string, any> = {
       courier_name: courier_name.trim(),
@@ -58,37 +47,32 @@ export async function POST(request: NextRequest) {
     };
 
     if (mark_shipped) {
-      patchData.status = 'shipped';
+      patchData.status = 'dispatched';
       patchData.dispatched_at = nowIso;
     }
 
-    await supabase.from('orders').update(patchData).eq('id', targetId);
-    adminOrdersStore.saveShipping(targetId, courier_name, tracking_number, tracking_url, mark_shipped);
+    const { data: updatedOrder, error: updateErr } = await supabase
+      .from('orders')
+      .update(patchData)
+      .eq('id', targetId)
+      .select('id, status')
+      .single();
 
-    // 3. Activity log
+    if (updateErr || !updatedOrder) {
+      return NextResponse.json(
+        { success: false, error: 'Order not found in database or update failed' },
+        { status: 404 }
+      );
+    }
+
+    // Audit log
     await logAdminActivity(
-      'shipping_updated',
+      'shipping_info_updated',
       'orders',
       targetId,
-      { courier_name, tracking_number, tracking_url, mark_shipped, duplicateWarning },
-      admin_user
+      { courier_name, tracking_number, tracking_url, mark_shipped },
+      auth.user?.email || 'admin'
     );
-
-    // 4. Proxy to legacy server if running
-    try {
-      await fetch('http://localhost:3300/api/save-shipping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_id: targetId,
-          courier_name,
-          tracking_number,
-          tracking_url,
-          mark_shipped,
-          admin_user,
-        }),
-      });
-    } catch {}
 
     return NextResponse.json({
       success: true,
@@ -96,13 +80,12 @@ export async function POST(request: NextRequest) {
       courier_name,
       tracking_number,
       tracking_url,
-      duplicate_warning: !!duplicateWarning,
-      warning: duplicateWarning,
+      status: mark_shipped ? 'shipped' : updatedOrder.status,
     });
   } catch (err: any) {
-    console.error('API /api/admin/save-shipping error:', err);
+    console.error('API /api/admin/save-shipping error:', err?.message);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to save shipping information' },
+      { success: false, error: 'Database error saving shipping information' },
       { status: 500 }
     );
   }

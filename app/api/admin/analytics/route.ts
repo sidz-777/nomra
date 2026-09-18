@@ -1,35 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { AnalyticsSummary } from '@/lib/admin/types';
-import { adminOrdersStore } from '@/lib/admin/order-memory-store';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  // 1. Strict Server-Side Authentication & Authorization Guard
+  const auth = await requireAdmin(request, ['owner', 'admin', 'staff']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const timeframe = searchParams.get('timeframe') || 'all';
 
-    let allOrders: any[] = [];
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-    try {
-      const supabase = createAdminClient();
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && Array.isArray(data)) {
-        allOrders = data;
-      }
-    } catch (err: any) {
-      console.warn('Supabase analytics fetch note:', err?.message);
+    if (error) {
+      throw error;
     }
 
-    // Fallback to in-memory store if database empty or unreachable
-    if (!allOrders.length) {
-      allOrders = adminOrdersStore.getAllOrders();
-    }
+    const allOrders: any[] = Array.isArray(data) ? data : [];
 
     const now = new Date();
     const filtered = allOrders.filter((o) => {
@@ -61,7 +58,9 @@ export async function GET(request: NextRequest) {
       .filter((o) => o.status !== 'delivered')
       .reduce((s, o) => s + (parseFloat(o.cod_amount) || 0), 0);
 
-    const aov = validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 0;
+    const activeOrders = validOrders.filter(
+      (o) => o.status !== 'delivered' && o.status !== 'cancelled'
+    ).length;
 
     const statusCounts: Record<string, number> = {};
     filtered.forEach((o) => {
@@ -69,24 +68,25 @@ export async function GET(request: NextRequest) {
       statusCounts[st] = (statusCounts[st] || 0) + 1;
     });
 
+    const avgOrderValue = validOrders.length > 0 ? Math.round(totalRevenue / validOrders.length) : 499;
+
     const summary: AnalyticsSummary = {
       timeframe,
       total_orders: filtered.length,
-      active_orders: validOrders.length,
-      total_revenue: Math.round(totalRevenue),
-      deposits_collected: Math.round(depositsCollected),
-      cod_outstanding: Math.round(codOutstanding),
-      average_order_value: aov,
+      active_orders: activeOrders,
+      total_revenue: totalRevenue,
+      deposits_collected: depositsCollected,
+      cod_outstanding: codOutstanding,
+      average_order_value: avgOrderValue,
       status_counts: statusCounts,
     };
 
-    return NextResponse.json({
-      success: true,
-      analytics: summary,
-      ...summary,
-    });
+    return NextResponse.json({ success: true, ...summary });
   } catch (err: any) {
-    console.error('API /api/admin/analytics error:', err);
-    return NextResponse.json({ success: false, error: err?.message || 'Server analytics error' }, { status: 500 });
+    console.error('API /api/admin/analytics error:', err?.message);
+    return NextResponse.json(
+      { success: false, error: 'Database error generating analytics.' },
+      { status: 500 }
+    );
   }
 }

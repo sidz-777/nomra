@@ -9,17 +9,60 @@ export function PersianCollection() {
     'all' | 'crimson' | 'blue' | 'pastel' | 'antique'
   >('all');
 
+  const [designs, setDesigns] = useState(PERSIAN_DESIGNS);
+
+  React.useEffect(() => {
+    let mounted = true;
+    async function syncPrices() {
+      try {
+        const res = await fetch('/api/products');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.products) && mounted) {
+            const priceMap = new Map();
+            data.products.forEach((p: any) => {
+              priceMap.set(p.id, {
+                price: Number(p.price) || 499,
+                depositPrice: Number(p.deposit_price) || 49,
+                codPrice: Number(p.cod_price) || 450,
+              });
+            });
+
+            setDesigns((prev) =>
+              prev.map((item) => {
+                const live = priceMap.get(item.id);
+                if (live) {
+                  return {
+                    ...item,
+                    price: live.price,
+                    depositPrice: live.depositPrice,
+                    codPrice: live.codPrice,
+                  };
+                }
+                return item;
+              })
+            );
+          }
+        }
+      } catch {}
+    }
+    syncPrices();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const filteredDesigns =
     activeCategory === 'all'
-      ? PERSIAN_DESIGNS
+      ? designs
       : activeCategory === 'antique'
-      ? PERSIAN_DESIGNS.filter(
+      ? designs.filter(
           (d) =>
             d.category === 'amber' ||
             d.category === 'vintage' ||
             (d.category as string) === 'antique'
         )
-      : PERSIAN_DESIGNS.filter((d) => d.category === activeCategory);
+      : designs.filter((d) => d.category === activeCategory);
 
   return (
     <section id="designs" className="section">

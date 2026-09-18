@@ -92,6 +92,7 @@ export const viewport: Viewport = {
 };
 
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { ScrollReveal } from '@/components/layout/ScrollReveal';
 
 export default function RootLayout({
   children,
@@ -106,7 +107,10 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="bg-namora-bg text-namora-ink antialiased min-h-screen">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <ScrollReveal />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );

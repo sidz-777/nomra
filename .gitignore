@@ -22,3 +22,6 @@ next-env.d.ts
 
 # Scratch & Temporary Verification Scripts
 scratch/
+
+# Archives & Backups
+*.zip

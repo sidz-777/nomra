@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request, ['owner', 'admin', 'staff']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -11,28 +17,23 @@ export async function GET(request: NextRequest) {
       .select('*')
       .order('created_at', { ascending: false });
 
-    let reviews = (!error && Array.isArray(data)) ? data : [];
+    if (error) throw error;
 
-    if (!reviews.length) {
-      try {
-        const proxyRes = await fetch('http://localhost:3300/api/reviews');
-        if (proxyRes.ok) {
-          const pData = await proxyRes.json();
-          if (pData.success && Array.isArray(pData.reviews)) {
-            reviews = pData.reviews;
-          }
-        }
-      } catch {}
-    }
-
+    const reviews = Array.isArray(data) ? data : [];
     return NextResponse.json({ success: true, reviews });
   } catch (err: any) {
-    console.error('API GET /api/admin/reviews error:', err);
-    return NextResponse.json({ success: false, error: err?.message || 'Failed to fetch reviews' }, { status: 500 });
+    console.error('API GET /api/admin/reviews error:', err?.message);
+    return NextResponse.json({ success: false, error: 'Database error fetching reviews' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  // Strict moderation check: only owner and admin can moderate/delete reviews
+  const auth = await requireAdmin(request, ['owner', 'admin']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const body = await request.json();
     const { action, review_id, status } = body;
@@ -41,35 +42,15 @@ export async function POST(request: NextRequest) {
 
     if (action === 'delete' && review_id) {
       await supabase.from('reviews').delete().eq('id', review_id);
-
-      // Proxy to legacy server if running
-      try {
-        await fetch('http://localhost:3300/api/admin/reviews', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      } catch {}
-
       return NextResponse.json({ success: true, deleted: review_id });
     } else if (action === 'moderate' && review_id && status) {
       await supabase.from('reviews').update({ status }).eq('id', review_id);
-
-      // Proxy to legacy server if running
-      try {
-        await fetch('http://localhost:3300/api/admin/reviews', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-      } catch {}
-
-      return NextResponse.json({ success: true, review_id, status });
+      return NextResponse.json({ success: true, updated: review_id, status });
     }
 
-    return NextResponse.json({ success: false, error: 'Invalid review action or parameters' }, { status: 400 });
+    return NextResponse.json({ success: false, error: 'Invalid review action' }, { status: 400 });
   } catch (err: any) {
-    console.error('API POST /api/admin/reviews error:', err);
-    return NextResponse.json({ success: false, error: err?.message || 'Failed to moderate review' }, { status: 500 });
+    console.error('API POST /api/admin/reviews error:', err?.message);
+    return NextResponse.json({ success: false, error: 'Failed to execute review action' }, { status: 500 });
   }
 }

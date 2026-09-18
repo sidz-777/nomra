@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { adminOrdersStore } from '@/lib/admin/order-memory-store';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  // 1. Strict Server-Side Authentication & Authorization Guard
+  const auth = await requireAdmin(request, ['owner', 'admin', 'staff']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const supabase = createAdminClient();
 
-    // 1. Query orders table
+    // 2. Query orders table
     const { data: ordersData, error: ordersError } = await supabase
       .from('orders')
       .select('*')
@@ -18,9 +24,9 @@ export async function GET(request: NextRequest) {
       throw ordersError;
     }
 
-    let orders = Array.isArray(ordersData) ? ordersData : [];
+    const orders = Array.isArray(ordersData) ? ordersData : [];
 
-    // 2. Query order_items table
+    // 3. Query order_items table
     const { data: itemsData } = await supabase.from('order_items').select('*');
 
     const itemsByOrder: Record<string, any[]> = {};
@@ -38,22 +44,16 @@ export async function GET(request: NextRequest) {
       items: itemsByOrder[o.id] || [],
     }));
 
-    // If database returned orders, use them; otherwise use in-memory store
-    const finalOrders = populatedOrders.length > 0 ? populatedOrders : adminOrdersStore.getAllOrders();
-
     return NextResponse.json({
       success: true,
-      orders: finalOrders,
-      total: finalOrders.length,
+      orders: populatedOrders,
+      total: populatedOrders.length,
     });
   } catch (err: any) {
-    console.error('API /api/admin/orders error, using fallback:', err?.message);
-
-    const fallbackOrders = adminOrdersStore.getAllOrders();
-    return NextResponse.json({
-      success: true,
-      orders: fallbackOrders,
-      total: fallbackOrders.length,
-    });
+    console.error('API /api/admin/orders error:', err?.message);
+    return NextResponse.json(
+      { success: false, error: 'Database error fetching administrative orders.' },
+      { status: 500 }
+    );
   }
 }

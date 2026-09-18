@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { verifyPaymentSignature } from '@/lib/payments/razorpay';
+import { verifyPaymentSignature, fetchRazorpayPayment } from '@/lib/payments/razorpay';
 import { VerifyPaymentResponse } from '@/lib/payments/types';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * In-memory idempotency cache for fast deduplication across rapid duplicate callbacks
- */
-const verifiedPaymentsCache = new Map<string, VerifyPaymentResponse>();
-
-/**
  * POST /api/payments/razorpay/verify
  * Cryptographically verifies Razorpay payment completion and updates order state.
+ * Validates HMAC signature, order binding, deposit amount, and prevents replayed payments.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -38,16 +34,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. In-memory deduplication check
-    if (verifiedPaymentsCache.has(razorpay_payment_id)) {
-      const cached = verifiedPaymentsCache.get(razorpay_payment_id)!;
-      return NextResponse.json({
-        ...cached,
-        is_duplicate: true,
-      });
-    }
-
-    // 2. Cryptographic Signature Verification
+    // 1. Cryptographic Signature Verification
     const isSignatureValid = verifyPaymentSignature({
       razorpay_order_id,
       razorpay_payment_id,
@@ -55,34 +42,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (!isSignatureValid) {
-      // Record failed attempt in payments table if possible
-      try {
-        const supabase = createAdminClient();
-        await supabase.from('payments').insert([
-          {
-            order_id: finalOrderId && finalOrderId.length === 36 ? finalOrderId : null,
-            order_number: finalOrderNumber || 'UNKNOWN',
-            provider: 'razorpay',
-            provider_order_id: razorpay_order_id,
-            provider_payment_id: razorpay_payment_id,
-            amount: 49.00,
-            status: 'failed',
-            method,
-          },
-        ]);
-      } catch {
-        // Ignore failure logging errors
-      }
-
       return NextResponse.json(
         { success: false, error: 'Payment signature verification failed. Invalid cryptographic credentials.' },
         { status: 400 }
       );
     }
 
-    // 3. Database Idempotency Check
+    const supabase = createAdminClient();
+
+    // 2. Database Idempotency Check: prevent duplicate processing of the same payment ID
     try {
-      const supabase = createAdminClient();
       const { data: existingPayment } = await supabase
         .from('payments')
         .select('*')
@@ -90,7 +59,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (existingPayment) {
-        const dupResponse: VerifyPaymentResponse = {
+        return NextResponse.json({
           success: true,
           is_duplicate: true,
           order_number: existingPayment.order_number || finalOrderNumber,
@@ -98,17 +67,14 @@ export async function POST(request: NextRequest) {
           deposit_paid: Number(existingPayment.amount) || 49,
           cod_balance: (body.cod_balance !== undefined ? Number(body.cod_balance) : 450),
           payment_id: razorpay_payment_id,
-        };
-        verifiedPaymentsCache.set(razorpay_payment_id, dupResponse);
-        return NextResponse.json(dupResponse);
+        });
       }
     } catch (checkErr: any) {
       console.warn('Idempotency check note in verify route:', checkErr?.message);
     }
 
-    // 4. Resolve Order details from Supabase
+    // 3. Resolve Order details from Supabase
     let resolvedOrder: any = null;
-    let supabase = createAdminClient();
     try {
       let query = supabase.from('orders').select('*');
       if (finalOrderId && finalOrderId.includes('-') && finalOrderId.length === 36) {
@@ -127,42 +93,94 @@ export async function POST(request: NextRequest) {
       console.warn('Order lookup note in verify:', lookupErr?.message);
     }
 
-    const orderNum = resolvedOrder?.order_number || finalOrderNumber || 'NAM-VERIFIED';
-    const depositPaid = resolvedOrder?.deposit_amount !== undefined
-      ? Number(resolvedOrder.deposit_amount)
-      : (body.amount ? Number(body.amount) : 49.00);
-    const codBalance = resolvedOrder?.cod_amount !== undefined
-      ? Number(resolvedOrder.cod_amount)
-      : 450.00;
+    if (!resolvedOrder) {
+      return NextResponse.json(
+        { success: false, error: 'Order reference not found in database.' },
+        { status: 404 }
+      );
+    }
 
-    let verificationSuccessful = false;
+    // 4. Strict Order Binding Verification:
+    // Prevent Order A's payment from marking Order B as paid
+    if (resolvedOrder.razorpay_order_id && resolvedOrder.razorpay_order_id !== razorpay_order_id) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Order Binding Violation: The Razorpay order does not belong to this booking.',
+        },
+        { status: 400 }
+      );
+    }
 
-    // 5. Attempt PostgreSQL verify_order_payment RPC
-    if (resolvedOrder?.id && resolvedOrder.id.length === 36) {
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('verify_order_payment', {
-          p_order_id: resolvedOrder.id,
-          p_provider_order_id: razorpay_order_id,
-          p_provider_payment_id: razorpay_payment_id,
-          p_amount: depositPaid,
-          p_method: method || 'upi',
-        });
+    const orderNum = resolvedOrder.order_number;
+    const depositPaid = Number(resolvedOrder.deposit_amount) || 49.00;
+    const codBalance = Number(resolvedOrder.cod_amount) || (Number(resolvedOrder.total_amount) - depositPaid);
 
-        if (!rpcError && rpcData?.success) {
-          verificationSuccessful = true;
-        }
-      } catch (rpcErr: any) {
-        console.warn('Direct verify_order_payment RPC note:', rpcErr?.message);
+    // 5. Authoritative Amount Validation: Never trust browser-supplied payment amount
+    if (body.amount !== undefined && body.amount !== null) {
+      const browserAmount = Number(body.amount);
+      if (browserAmount !== depositPaid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Payment Amount Mismatch: Browser supplied amount (₹${browserAmount}) does not match authoritative deposit (₹${depositPaid}).`,
+          },
+          { status: 400 }
+        );
       }
     }
 
-    // 6. Direct Database Update / Fallback Table Mutation
+    // 6. Authoritative Gateway Check: Validate payment directly with Razorpay API if live
+    const gatewayPayment = await fetchRazorpayPayment(razorpay_payment_id);
+    if (gatewayPayment) {
+      if (gatewayPayment.order_id && gatewayPayment.order_id !== razorpay_order_id) {
+        return NextResponse.json(
+          { success: false, error: 'Gateway Violation: Razorpay payment belongs to another order.' },
+          { status: 400 }
+        );
+      }
+      const expectedPaise = Math.round(depositPaid * 100);
+      if (gatewayPayment.amount !== expectedPaise) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Underpayment Detected: Gateway payment amount (${gatewayPayment.amount} paise) does not match required deposit (${expectedPaise} paise).`,
+          },
+          { status: 400 }
+        );
+      }
+      if (gatewayPayment.currency !== 'INR') {
+        return NextResponse.json(
+          { success: false, error: 'Currency Violation: Only INR payments are accepted.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 7. Attempt PostgreSQL verify_order_payment RPC (Zero underpayment tolerance)
+    let verificationSuccessful = false;
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('verify_order_payment', {
+        p_order_id: resolvedOrder.id,
+        p_provider_order_id: razorpay_order_id,
+        p_provider_payment_id: razorpay_payment_id,
+        p_amount: depositPaid,
+        p_method: method || 'upi',
+      });
+
+      if (!rpcError && rpcData?.success) {
+        verificationSuccessful = true;
+      }
+    } catch (rpcErr: any) {
+      console.warn('Direct verify_order_payment RPC note:', rpcErr?.message);
+    }
+
+    // 6. Direct Database Update fallback if RPC not yet deployed
     if (!verificationSuccessful) {
       try {
-        // Record in payments table
         await supabase.from('payments').insert([
           {
-            order_id: resolvedOrder?.id && resolvedOrder.id.length === 36 ? resolvedOrder.id : null,
+            order_id: resolvedOrder.id,
             order_number: orderNum,
             provider: 'razorpay',
             provider_order_id: razorpay_order_id,
@@ -174,47 +192,25 @@ export async function POST(request: NextRequest) {
           },
         ]);
 
-        // Update orders table
-        if (resolvedOrder?.id) {
-          await supabase
-            .from('orders')
-            .update({
-              status: 'advance_paid',
-              payment_status: 'deposit_received',
-              razorpay_order_id,
-              razorpay_payment_id,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', resolvedOrder.id);
-        }
+        await supabase
+          .from('orders')
+          .update({
+            status: 'advance_paid',
+            payment_status: 'deposit_received',
+            razorpay_order_id,
+            razorpay_payment_id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', resolvedOrder.id);
 
         verificationSuccessful = true;
       } catch (dbUpdateErr: any) {
-        console.warn('Direct payment table update note:', dbUpdateErr?.message);
+        console.error('Payment database update error:', dbUpdateErr?.message);
       }
     }
 
-    // 7. Reconcile with legacy server.js on port 3300 if running
-    try {
-      await fetch('http://localhost:3300/api/verify-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_id: resolvedOrder?.id || finalOrderId,
-          order_number: orderNum,
-          razorpay_order_id,
-          razorpay_payment_id,
-          razorpay_signature,
-          method,
-        }),
-      });
-    } catch {
-      // Legacy server proxy is optional
-    }
-
-    const responsePayload: VerifyPaymentResponse = {
+    const verifyResponse: VerifyPaymentResponse = {
       success: true,
-      is_duplicate: false,
       order_number: orderNum,
       status: 'advance_paid',
       deposit_paid: depositPaid,
@@ -222,9 +218,7 @@ export async function POST(request: NextRequest) {
       payment_id: razorpay_payment_id,
     };
 
-    verifiedPaymentsCache.set(razorpay_payment_id, responsePayload);
-
-    return NextResponse.json(responsePayload);
+    return NextResponse.json(verifyResponse);
   } catch (err: any) {
     console.error('API /api/payments/razorpay/verify error:', err);
     return NextResponse.json(

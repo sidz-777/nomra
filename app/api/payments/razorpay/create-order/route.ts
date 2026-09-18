@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { PUBLIC_CONFIG } from '@/lib/config';
 import { toPaise, createRazorpayGatewayOrder } from '@/lib/payments/razorpay';
-import { CreateRazorpayOrderResponse } from '@/lib/payments/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     let resolvedOrder: any = null;
 
-    // 1. Resolve order from Supabase
+    // 1. Resolve order strictly from Supabase
     try {
       const supabase = createAdminClient();
       let query = supabase.from('orders').select('*');
@@ -37,49 +35,33 @@ export async function POST(request: NextRequest) {
         query = query.eq('order_number', orderId);
       }
 
-      const { data, error } = await query.single();
+      const { data, error } = await query.maybeSingle();
       if (!error && data) {
         resolvedOrder = data;
       }
     } catch (dbErr: any) {
-      console.warn('Supabase order lookup note in create-order:', dbErr?.message);
+      console.warn('Supabase order lookup exception in create-order:', dbErr?.message);
     }
 
-    // 2. Check proxy to server.js backend if not found directly in Supabase
-    if (!resolvedOrder && orderNumber) {
-      try {
-        const proxyRes = await fetch('http://localhost:3300/api/track-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: orderNumber }),
-        });
-        if (proxyRes.ok) {
-          const pData = await proxyRes.json();
-          if (pData.found && pData.order) {
-            resolvedOrder = pData.order;
-          }
-        }
-      } catch (proxyErr: any) {
-        console.warn('Proxy track-order note in create-order:', proxyErr?.message);
-      }
+    // Fail closed if order cannot be found in database
+    if (!resolvedOrder) {
+      return NextResponse.json(
+        { success: false, error: 'Order reference not found in database.' },
+        { status: 404 }
+      );
     }
 
-    // 3. Fallback order reference reconstruction
-    const finalOrderId = resolvedOrder?.id || orderId || `order_${Date.now()}`;
-    const finalOrderNumber = resolvedOrder?.order_number || orderNumber || 'NAM-ORDER';
-    
+    const finalOrderId = resolvedOrder.id;
+    const finalOrderNumber = resolvedOrder.order_number;
+
     // Enforce server-authoritative deposit derivation (₹49 per frame default)
-    const depositInr = resolvedOrder?.deposit_amount !== undefined
+    const depositInr = resolvedOrder.deposit_amount !== undefined
       ? Number(resolvedOrder.deposit_amount)
-      : (body?.frameCount ? Number(body.frameCount) * 49 : 49);
+      : 49;
 
-    const totalInr = resolvedOrder?.total_amount !== undefined ? Number(resolvedOrder.total_amount) : 499;
-    const codInr = resolvedOrder?.cod_amount !== undefined ? Number(resolvedOrder.cod_amount) : (totalInr - depositInr);
-
-    // Convert to paise strictly via integer arithmetic
     const amountPaise = toPaise(depositInr);
 
-    // 4. Create Razorpay order via Gateway
+    // 2. Create Razorpay order via Gateway
     const gatewayOrder = await createRazorpayGatewayOrder({
       amountPaise,
       currency: 'INR',
@@ -92,44 +74,39 @@ export async function POST(request: NextRequest) {
 
     const razorpayOrderId = gatewayOrder.id;
 
-    // 5. Persist razorpay_order_id back to Supabase
-    if (resolvedOrder?.id) {
-      try {
-        const supabase = createAdminClient();
-        await supabase
-          .from('orders')
-          .update({
-            razorpay_order_id: razorpayOrderId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', resolvedOrder.id);
-      } catch (updateErr: any) {
-        console.warn('Persist razorpay_order_id note:', updateErr?.message);
-      }
+    // 3. Persist razorpay_order_id back to Supabase
+    try {
+      const supabase = createAdminClient();
+      await supabase
+        .from('orders')
+        .update({
+          razorpay_order_id: razorpayOrderId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', finalOrderId);
+    } catch (saveErr: any) {
+      console.warn('Error saving razorpay_order_id to database:', saveErr?.message);
     }
 
-    const responsePayload: CreateRazorpayOrderResponse = {
+    return NextResponse.json({
       success: true,
-      keyId: PUBLIC_CONFIG.RAZORPAY_KEY_ID,
-      razorpayOrderId,
-      amount: amountPaise,
-      currency: 'INR',
       orderId: finalOrderId,
       orderNumber: finalOrderNumber,
+      razorpayOrderId,
+      amount: amountPaise,
+      currency: gatewayOrder.currency || 'INR',
       depositAmount: depositInr,
-      codAmount: codInr,
-      totalAmount: totalInr,
+      totalAmount: Number(resolvedOrder.total_amount) || 499,
+      codAmount: Number(resolvedOrder.cod_amount) || 450,
       customer: {
-        name: resolvedOrder?.customer_name || body?.customerName || 'Valued Customer',
-        contact: resolvedOrder?.phone || body?.customerPhone || '',
+        name: resolvedOrder.customer_name || '',
+        contact: resolvedOrder.phone || '',
       },
-    };
-
-    return NextResponse.json(responsePayload);
-  } catch (err: any) {
-    console.error('API /api/payments/razorpay/create-order error:', err);
+    });
+  } catch (error: any) {
+    console.error('API /api/payments/razorpay/create-order error:', error);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Server error creating Razorpay order.' },
+      { success: false, error: error?.message || 'Server error creating payment gateway order.' },
       { status: 500 }
     );
   }

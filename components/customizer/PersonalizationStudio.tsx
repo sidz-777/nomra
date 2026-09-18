@@ -295,13 +295,13 @@ export function PersonalizationStudio({
   return (
     <section id="create" className="section">
       <div className="container">
-        <div className="section-head reveal">
+        <div className="section-head reveal visible">
           <div className="eyebrow" style={{ justifyContent: 'center' }}>Customize</div>
           <h2>Personalize Your Frame</h2>
           <p>Enter the name exactly as you&apos;d like it written. Switch between English and Arabic anytime.</p>
         </div>
 
-        <div className="builder-grid reveal">
+        <div className="builder-grid reveal visible">
           <div className="panel">
             <DesignSelector
               selectedDesign={state.activeDesign}

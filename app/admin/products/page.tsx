@@ -18,48 +18,10 @@ interface CatalogProduct {
   is_stock_managed?: boolean;
 }
 
-const DEFAULT_CATALOG: CatalogProduct[] = [
-  { id: 'car-1', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS', image: 'car1.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-2', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M5 F90 Black Edition', image: 'car2.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-3', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Silver', image: 'car3.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-4', category: 'cars', categoryLabel: 'Supercars', title: 'BMW M8 Competition Coupé', image: 'car4.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-5', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 Rear Wing', image: 'car5.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-6', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche GT3 RS White Frame', image: 'car6.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-7', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS Carbon Gray', image: 'car7.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-8', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 GT3 RS 3D Diecast', image: 'car8.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-9', category: 'cars', categoryLabel: 'Supercars', title: 'Ford Mustang 1964 Legendary', image: 'car9.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'car-11', category: 'cars', categoryLabel: 'Supercars', title: 'Porsche 911 RSR Triptych Wall Set', image: 'car11.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-14', category: 'sports', categoryLabel: 'Sports Legends', title: 'Cristiano Ronaldo — CR7 1985', image: 'sport14.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-3', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi — World Cup Triumph', image: 'sport3.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-4', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 Argentina Jersey Frame', image: 'sport4.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-5', category: 'sports', categoryLabel: 'Sports Legends', title: 'Lionel Messi #10 Accolades', image: 'sport5.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-10', category: 'sports', categoryLabel: 'Sports Legends', title: 'Messi #10 3D Layered Jersey', image: 'sport10.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-1', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Vintage Crest', image: 'sport1.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-2', category: 'sports', categoryLabel: 'Sports Legends', title: 'Real Madrid — Hala Madrid', image: 'sport2.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-13', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jude Bellingham — England & Madrid', image: 'sport13.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-9', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr #10 Brazil 3D Frame', image: 'sport9.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-12', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr 1992 Brazil Signature', image: 'sport12.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-15', category: 'sports', categoryLabel: 'Sports Legends', title: 'Neymar Jr — Santos FC Heritage', image: 'sport15.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-6', category: 'sports', categoryLabel: 'Sports Legends', title: 'FC Barcelona Leather Grain', image: 'sport6.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-11', category: 'sports', categoryLabel: 'Sports Legends', title: 'Força Barça — Més Que Un Club', image: 'sport11.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'sport-8', category: 'sports', categoryLabel: 'Sports Legends', title: 'Jamal Musiala #10 Germany DFB', image: 'sport8.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'pop-1', category: 'pop', categoryLabel: 'Pop Culture', title: 'Spider-Man: Into the Spider-Verse', image: 'sport16.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'pop-2', category: 'pop', categoryLabel: 'Motorsport', title: 'Lewis Hamilton #44 Mercedes F1', image: 'sport18.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-4', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Carpet Mosaic', image: 'name4.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-7', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Heritage Rug', image: 'name7.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-9', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Blush Floral', image: 'name9.png', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-10', category: 'names', categoryLabel: 'Ready Names', title: 'Fatima (فاطمة) — Royal Purple', image: 'name10.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-3', category: 'names', categoryLabel: 'Ready Names', title: 'Muhammad (محمد) — Kilim Rug', image: 'name3.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-8', category: 'names', categoryLabel: 'Ready Names', title: 'Ahmad (أحمد) — Handheld Photo', image: 'name8.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-6', category: 'names', categoryLabel: 'Ready Names', title: 'Maryam (مريم) — Jasmine Flower', image: 'name6.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-5', category: 'names', categoryLabel: 'Ready Names', title: 'Batool (بتول) — Crimson Tapestry', image: 'name5.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-2', category: 'names', categoryLabel: 'Ready Names', title: 'Rimsha (رمشا) — Floral "R"', image: 'name2.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-1', category: 'names', categoryLabel: 'Ready Names', title: 'Tayyiba (طيبة) — Persian Blue', image: 'name1.jpg', price: 499, in_stock: true, stock_quantity: 5 },
-  { id: 'name-11', category: 'names', categoryLabel: 'Ready Names', title: 'Sabr (صبر - Patience)', image: 'name11.jpg', price: 499, in_stock: true, stock_quantity: 5 }
-];
-
 export default function AdminProductsPage() {
-  const [products, setProducts] = useState<CatalogProduct[]>(DEFAULT_CATALOG);
+  const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -67,6 +29,8 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     async function loadProducts() {
+      setLoading(true);
+      setLoadError(null);
       try {
         const res = await fetch('/api/products');
         if (res.ok) {
@@ -92,17 +56,17 @@ export default function AdminProductsPage() {
             });
             setPriceInputs(initialInputs);
             return;
+          } else {
+            setLoadError('No products returned from the product catalog service.');
           }
+        } else {
+          setLoadError(`Catalog service error: HTTP ${res.status}`);
         }
-      } catch (err) {
-        console.warn('Could not fetch /api/products, using default catalog:', err);
+      } catch (err: any) {
+        setLoadError('Failed to communicate with catalog service. Database or network error.');
+      } finally {
+        setLoading(false);
       }
-
-      const initialInputs: Record<string, string> = {};
-      DEFAULT_CATALOG.forEach((item) => {
-        initialInputs[item.id] = item.price.toString();
-      });
-      setPriceInputs(initialInputs);
     }
 
     loadProducts();
@@ -119,12 +83,12 @@ export default function AdminProductsPage() {
     setPriceInputs((prev) => ({ ...prev, [id]: val }));
   };
 
-  const saveProductPrice = async (id: string) => {
-    const rawVal = priceInputs[id] ?? '';
-    const newPrice = parseFloat(rawVal.trim());
+  const handleSavePrice = async (id: string) => {
+    const rawVal = priceInputs[id];
+    const newPrice = parseFloat(rawVal);
 
-    if (isNaN(newPrice) || newPrice <= 0 || !isFinite(newPrice)) {
-      alert('Please enter a valid positive price greater than 0.');
+    if (isNaN(newPrice) || newPrice <= 0) {
+      showToast('⚠️ Please enter a valid price greater than 0');
       return;
     }
 
@@ -162,27 +126,58 @@ export default function AdminProductsPage() {
     }
   };
 
-  const toggleStockStatus = (id: string) => {
+  const toggleStockStatus = async (id: string) => {
+    const item = products.find((p) => p.id === id);
+    if (!item) return;
+    const newInStock = !item.in_stock;
+    const newQty = newInStock ? (item.stock_quantity > 0 ? item.stock_quantity : 5) : 0;
+
     setProducts((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const newInStock = !item.in_stock;
-        const newQty = newInStock ? (item.stock_quantity > 0 ? item.stock_quantity : 5) : 0;
-        showToast(`Stock status updated for "${item.title}"`);
-        return { ...item, in_stock: newInStock, stock_quantity: newQty };
-      })
+      prev.map((p) => (p.id === id ? { ...p, in_stock: newInStock, stock_quantity: newQty } : p))
     );
+
+    try {
+      const res = await fetch('/api/admin/adjust-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: id, in_stock: newInStock, stock_quantity: newQty }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✅ Stock updated: ${newQty} units (in_stock: ${newInStock})`);
+      } else {
+        throw new Error(data?.error || 'Failed to persist stock');
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Error saving stock: ${err?.message}`);
+    }
   };
 
-  const adjustStock = (id: string, delta: number) => {
+  const adjustStockQuantity = async (id: string, delta: number) => {
+    const item = products.find((p) => p.id === id);
+    if (!item) return;
+    const newQty = Math.max(0, item.stock_quantity + delta);
+    const newInStock = newQty > 0;
+
     setProducts((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const newQty = Math.max(0, item.stock_quantity + delta);
-        showToast(`Stock updated for "${item.title}": ${newQty} units`);
-        return { ...item, stock_quantity: newQty, in_stock: newQty > 0 };
-      })
+      prev.map((p) => (p.id === id ? { ...p, stock_quantity: newQty, in_stock: newInStock } : p))
     );
+
+    try {
+      const res = await fetch('/api/admin/adjust-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: id, stock_quantity: newQty }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`✅ Stock updated & saved in database: ${newQty} units`);
+      } else {
+        throw new Error(data?.error || 'Failed to persist stock');
+      }
+    } catch (err: any) {
+      showToast(`⚠️ Error saving stock: ${err?.message}`);
+    }
   };
 
   const filteredProducts =
@@ -203,6 +198,30 @@ export default function AdminProductsPage() {
         {toastMessage && (
           <div className="fixed bottom-6 right-6 z-50 bg-[#1A1816] border border-[#D4AF6A] text-[#F5EFE6] px-4 py-3 rounded-lg shadow-2xl text-xs font-mono animate-fade-in flex items-center gap-2">
             {toastMessage}
+          </div>
+        )}
+
+        {/* Error Banner */}
+        {loadError && (
+          <div className="mb-6 p-4 rounded-lg bg-red-950/40 border border-red-800 text-red-300 text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-red-400 font-bold">⚠️ Catalog Error:</span>
+              <span>{loadError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-3 py-1 bg-red-900/60 hover:bg-red-800 text-red-200 text-xs rounded transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Loading Indicator */}
+        {loading && (
+          <div className="mb-6 p-8 text-center text-[#A39684] text-sm font-mono border border-[#2D2722] rounded-xl bg-[#1A1816]/40">
+            <span className="animate-pulse">Loading authoritative product catalog...</span>
           </div>
         )}
 
@@ -228,7 +247,7 @@ export default function AdminProductsPage() {
                 : 'bg-[#1A1816] border border-[#2D2722] text-[#A39684] hover:text-[#F5EFE6]'
             }`}
           >
-            🏎️ Supercars ({countCars})
+            Supercars ({countCars})
           </button>
           <button
             type="button"
@@ -239,7 +258,7 @@ export default function AdminProductsPage() {
                 : 'bg-[#1A1816] border border-[#2D2722] text-[#A39684] hover:text-[#F5EFE6]'
             }`}
           >
-            ⚽ Sports ({countSports})
+            Sports ({countSports})
           </button>
           <button
             type="button"
@@ -250,7 +269,7 @@ export default function AdminProductsPage() {
                 : 'bg-[#1A1816] border border-[#2D2722] text-[#A39684] hover:text-[#F5EFE6]'
             }`}
           >
-            ✒️ Ready Names ({countNames})
+            Ready Names ({countNames})
           </button>
           <button
             type="button"
@@ -261,99 +280,118 @@ export default function AdminProductsPage() {
                 : 'bg-[#1A1816] border border-[#2D2722] text-[#A39684] hover:text-[#F5EFE6]'
             }`}
           >
-            🎬 Pop Culture ({countPop})
+            Pop &amp; F1 ({countPop})
           </button>
         </div>
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {/* Products Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredProducts.map((p) => {
-            const qty = p.stock_quantity !== undefined ? p.stock_quantity : (p.in_stock ? 5 : 0);
             const isSaving = savingId === p.id;
-            const imgSrc = p.image.startsWith('/') || p.image.startsWith('http') ? p.image : `/${p.image}`;
+            const currentInputValue = priceInputs[p.id] ?? p.price.toString();
+            const hasChanged = parseFloat(currentInputValue) !== p.price && !isNaN(parseFloat(currentInputValue));
 
             return (
               <div
                 key={p.id}
-                className="bg-[#1A1816] border border-[#2D2722] hover:border-[#D4AF6A]/50 rounded-xl overflow-hidden flex flex-col transition-all"
+                className="bg-[#1A1816] border border-[#2D2722] rounded-xl overflow-hidden hover:border-[#D4AF6A]/30 transition-all flex flex-col justify-between"
               >
-                {/* Thumbnail Box */}
-                <div className="w-full aspect-[4/5] bg-black relative overflow-hidden">
-                  <span
-                    className={`absolute top-2.5 left-2.5 z-10 text-[10px] font-mono font-bold px-2 py-0.5 rounded-full uppercase ${
-                      p.in_stock && qty > 0
-                        ? 'bg-emerald-500 text-black'
-                        : 'bg-red-500 text-white'
-                    }`}
-                  >
-                    {p.in_stock && qty > 0 ? `In Stock (${qty})` : 'Out of Stock'}
-                  </span>
-                  <img
-                    src={imgSrc}
-                    alt={p.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/design1.jpg';
-                    }}
-                  />
-                </div>
-
-                {/* Card Body */}
-                <div className="p-4 flex flex-col flex-1">
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-[#D4AF6A] mb-1">
-                    {p.categoryLabel}
-                  </div>
-                  <div className="font-semibold text-sm text-[#F5EFE6] line-clamp-1 mb-3">
-                    {p.title}
+                <div className="p-4 flex gap-4 items-start">
+                  <div className="w-20 h-28 bg-[#141210] rounded-lg overflow-hidden border border-[#2D2722] flex-shrink-0 relative">
+                    <img
+                      src={p.image.startsWith('/') ? p.image : `/${p.image}`}
+                      alt={p.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                    <div className="absolute top-1 left-1 bg-[#141210]/90 px-1.5 py-0.5 rounded text-[9px] font-mono text-[#D4AF6A] border border-[#D4AF6A]/20">
+                      A4
+                    </div>
                   </div>
 
-                  {/* Price & Stock Row */}
-                  <div className="mt-auto pt-3 border-t border-[#2D2722] flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-[#D4AF6A] text-sm">₹</span>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={priceInputs[p.id] ?? p.price}
-                        onChange={(e) => handlePriceChange(p.id, e.target.value)}
-                        className="w-16 px-1.5 py-1 bg-[#0E0D0C] border border-[#2D2722] focus:border-[#D4AF6A] rounded text-xs font-mono font-bold text-[#D4AF6A] outline-none"
-                      />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-[#2D2722] text-[#A39684]">
+                        {p.categoryLabel}
+                      </span>
+                      <span className="text-[10px] font-mono text-[#736B5E] truncate">
+                        ID: {p.id}
+                      </span>
+                    </div>
+
+                    <h4 className="text-sm font-serif font-medium text-[#F5EFE6] truncate mb-2" title={p.title}>
+                      {p.title}
+                    </h4>
+
+                    {/* Stock status toggle & count */}
+                    <div className="flex items-center gap-2 mb-3">
                       <button
                         type="button"
-                        disabled={isSaving}
-                        onClick={() => saveProductPrice(p.id)}
-                        className="px-2 py-1 bg-[#0E0D0C] hover:bg-[#D4AF6A] border border-[#D4AF6A] hover:text-[#141210] text-[#D4AF6A] text-[11px] font-mono font-semibold rounded transition-all disabled:opacity-50"
+                        onClick={() => toggleStockStatus(p.id)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-medium border transition ${
+                          p.in_stock
+                            ? 'bg-emerald-950/40 border-emerald-800 text-emerald-400 hover:bg-emerald-900/60'
+                            : 'bg-red-950/40 border-red-800 text-red-400 hover:bg-red-900/60'
+                        }`}
                       >
-                        {isSaving ? '...' : 'Save'}
+                        {p.in_stock ? '● In Stock' : '○ Out of Stock'}
                       </button>
+
+                      {/* Quantity stepper */}
+                      <div className="flex items-center gap-1 bg-[#141210] border border-[#2D2722] rounded px-1.5 py-0.5">
+                        <button
+                          type="button"
+                          onClick={() => adjustStockQuantity(p.id, -1)}
+                          className="text-[#A39684] hover:text-[#F5EFE6] text-xs px-1"
+                          title="Decrease stock"
+                        >
+                          -
+                        </button>
+                        <span className="text-[11px] font-mono text-[#F5EFE6] px-1 font-semibold">
+                          {p.stock_quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => adjustStockQuantity(p.id, 1)}
+                          className="text-[#A39684] hover:text-[#F5EFE6] text-xs px-1"
+                          title="Increase stock"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Price editor footer */}
+                <div className="bg-[#141210] border-t border-[#2D2722] px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-[#A39684]">Price (₹):</span>
+                    <input
+                      type="number"
+                      value={currentInputValue}
+                      onChange={(e) => handlePriceChange(p.id, e.target.value)}
+                      className="w-20 bg-[#1A1816] border border-[#2D2722] rounded px-2 py-1 text-xs font-mono text-[#F5EFE6] focus:border-[#D4AF6A] focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="text-[10px] font-mono text-[#736B5E] text-right">
+                      <div>Dep: ₹{p.deposit_price || 49}</div>
+                      <div>COD: ₹{p.cod_price || (p.price - 49)}</div>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => toggleStockStatus(p.id)}
-                      className="px-2 py-1 bg-[#0E0D0C] border border-[#2D2722] hover:border-[#D4AF6A] text-[#A39684] hover:text-[#D4AF6A] text-[10px] font-mono rounded transition-all"
+                      onClick={() => handleSavePrice(p.id)}
+                      disabled={isSaving || !hasChanged}
+                      className={`px-3 py-1 rounded text-xs font-mono font-medium transition ${
+                        hasChanged
+                          ? 'bg-[#D4AF6A] text-[#141210] hover:bg-[#E0C082] shadow-sm'
+                          : 'bg-[#2D2722] text-[#736B5E] cursor-not-allowed'
+                      }`}
                     >
-                      {p.in_stock && qty > 0 ? 'Mark Out' : 'Mark In'}
-                    </button>
-                  </div>
-
-                  {/* Stock Quick Actions */}
-                  <div className="flex gap-2 mt-3 pt-2.5 border-t border-dashed border-[#2D2722]">
-                    <button
-                      type="button"
-                      onClick={() => adjustStock(p.id, 5)}
-                      className="flex-1 py-1 text-center bg-[#0E0D0C] hover:bg-[#221F1C] border border-[#2D2722] text-[#A39684] hover:text-[#F5EFE6] text-[10px] font-mono rounded transition-all"
-                    >
-                      +5 Restock
-                    </button>
-                    <button
-                      type="button"
-                      disabled={qty <= 0}
-                      onClick={() => adjustStock(p.id, -1)}
-                      className="flex-1 py-1 text-center bg-[#0E0D0C] hover:bg-[#221F1C] border border-[#2D2722] text-[#A39684] hover:text-[#F5EFE6] text-[10px] font-mono rounded transition-all disabled:opacity-30"
-                    >
-                      -1 Sold
+                      {isSaving ? 'Saving...' : 'Save'}
                     </button>
                   </div>
                 </div>

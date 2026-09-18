@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { revalidatePath } from 'next/cache';
+import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logAdminActivity } from '@/lib/admin/audit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  // 1. Strict Server-Side Authentication & Authorization Guard (Only owner and admin)
+  const auth = await requireAdmin(request, ['owner', 'admin']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const body = await request.json();
-    const productId = (body.product_id || body.id || '').trim();
+    const productId = (body.product_id || body.productId || body.id || '').trim();
     const rawPrice = body.price;
     const numPrice = parseFloat(rawPrice);
     const rawDeposit = body.deposit_price !== undefined ? parseFloat(body.deposit_price) : 49.0;
@@ -72,23 +80,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 3. Confirm with GET verification
-    try {
-      const { data: verifyData } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', productId)
-        .single();
-
-      if (verifyData && parseFloat(verifyData.price) === numPrice) {
-        dbPersisted = true;
-        dbProduct = verifyData;
-      }
-    } catch (vErr: any) {
-      console.warn('Verification query note:', vErr?.message);
-    }
-
-    // 4. Update catalog_overrides.json
+    // 3. Update catalog_overrides.json on disk
     const overridesPath = path.join(process.cwd(), 'catalog_overrides.json');
     let priceOverrides: Record<string, any> = {};
     if (fs.existsSync(overridesPath)) {
@@ -113,22 +105,22 @@ export async function POST(request: NextRequest) {
       console.warn('catalog_overrides.json write note:', fsErr?.message);
     }
 
+    // 4. Invalidate Next.js cache so storefront updates immediately
+    try {
+      revalidatePath('/');
+      revalidatePath('/api/products');
+    } catch (cacheErr: any) {
+      console.warn('Revalidation note:', cacheErr?.message);
+    }
+
     // 5. Activity log
     await logAdminActivity(
       'product_price_updated',
       'products',
       productId,
-      { price: numPrice, deposit_price: numDeposit, cod_price: numCod, db_persisted: dbPersisted }
+      { price: numPrice, deposit_price: numDeposit, cod_price: numCod, db_persisted: dbPersisted },
+      auth.user?.email || 'admin'
     );
-
-    // 6. Proxy to legacy server.js if running
-    try {
-      await fetch('http://localhost:3300/api/admin/update-product-price', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: productId, price: numPrice, deposit_price: numDeposit }),
-      });
-    } catch {}
 
     return NextResponse.json({
       success: true,
@@ -145,14 +137,12 @@ export async function POST(request: NextRequest) {
         cod_price: numCod,
         updated_at: priceOverrides[productId].updated_at,
       },
-      message: dbPersisted
-        ? `Product price successfully persisted to Supabase database as ₹${numPrice}.`
-        : `Product price updated on server as ₹${numPrice}.`,
+      message: `Product price successfully updated to ₹${numPrice}.`,
     });
   } catch (err: any) {
-    console.error('API /api/admin/update-product-price error:', err);
+    console.error('API /api/admin/update-product-price error:', err?.message);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to update product price' },
+      { success: false, error: 'Database error updating product price' },
       { status: 500 }
     );
   }

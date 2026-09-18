@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  // 1. Strict Server-Side Authentication & Authorization Guard (Only owner and admin)
+  const auth = await requireAdmin(request, ['owner', 'admin']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -16,26 +23,12 @@ export async function GET(request: NextRequest) {
       throw error;
     }
 
-    let customers = Array.isArray(data) ? data : [];
-
-    // Fallback proxy to port 3300 if database empty
-    if (!customers.length) {
-      try {
-        const proxyRes = await fetch('http://localhost:3300/api/customers');
-        if (proxyRes.ok) {
-          const pData = await proxyRes.json();
-          if (pData.success && Array.isArray(pData.customers)) {
-            customers = pData.customers;
-          }
-        }
-      } catch {}
-    }
-
+    const customers = Array.isArray(data) ? data : [];
     return NextResponse.json({ success: true, customers });
   } catch (err: any) {
-    console.error('API /api/admin/customers error:', err);
+    console.error('API /api/admin/customers error:', err?.message);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to fetch customers' },
+      { success: false, error: 'Database error fetching customer directory.' },
       { status: 500 }
     );
   }

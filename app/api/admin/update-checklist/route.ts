@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { logAdminActivity } from '@/lib/admin/audit';
-import { adminOrdersStore } from '@/lib/admin/order-memory-store';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  // 1. Strict Server-Side Authentication & Authorization Guard
+  const auth = await requireAdmin(request, ['owner', 'admin', 'staff']);
+  if (!auth.authorized) {
+    return auth.errorResponse!;
+  }
+
   try {
     const body = await request.json();
-    const { order_id, checklist = {}, admin_user = 'admin' } = body;
+    const { order_id, checklist = {} } = body;
 
     if (!order_id) {
       return NextResponse.json({ success: false, error: 'order_id is required' }, { status: 400 });
@@ -27,33 +33,31 @@ export async function POST(request: NextRequest) {
     }
 
     // Update in Supabase orders
-    await supabase
+    const { data: updatedOrder, error: updateErr } = await supabase
       .from('orders')
       .update({
         production_checklist: checklist,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', targetId);
+      .eq('id', targetId)
+      .select('id')
+      .single();
 
-    adminOrdersStore.updateChecklist(targetId, checklist);
+    if (updateErr || !updatedOrder) {
+      return NextResponse.json(
+        { success: false, error: 'Order not found in database' },
+        { status: 404 }
+      );
+    }
 
     // Audit log
-    await logAdminActivity('checklist_updated', 'orders', targetId, { checklist }, admin_user);
-
-    // Proxy to legacy server.js if running
-    try {
-      await fetch('http://localhost:3300/api/update-checklist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: targetId, checklist, admin_user }),
-      });
-    } catch {}
+    await logAdminActivity('checklist_updated', 'orders', targetId, { checklist }, auth.user?.email || 'admin');
 
     return NextResponse.json({ success: true, checklist });
   } catch (err: any) {
-    console.error('API /api/admin/update-checklist error:', err);
+    console.error('API /api/admin/update-checklist error:', err?.message);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Failed to update checklist' },
+      { success: false, error: 'Database error updating checklist' },
       { status: 500 }
     );
   }

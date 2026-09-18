@@ -87,28 +87,15 @@ export const RazorpayPaymentButton: React.FC<RazorpayPaymentButtonProps> = ({
       // Check if SDK is available
       const RazorpayCtor = (window as any).Razorpay;
       if (!RazorpayCtor) {
-        // Simulated Dev Mode fallback if offline or CDN blocked
-        console.warn('Razorpay SDK not loaded in window. Triggering simulated test flow.');
-        setStatus('verifying');
-        
-        const simVerifyRes = await fetch('/api/payments/razorpay/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderId: orderData.orderId || orderId,
-            orderNumber: orderData.orderNumber || orderNumber,
-            razorpay_order_id: orderData.razorpayOrderId,
-            razorpay_payment_id: 'pay_sim_' + Math.random().toString(36).substring(2, 10),
-            razorpay_signature: 'mock_valid_signature',
-          }),
-        });
-        const simVerifyData = await simVerifyRes.json();
-        if (simVerifyData.success) {
-          clearCart();
-          setStatus('verified');
-          onSuccess?.(simVerifyData);
-          return;
+        // In production, strictly fail closed if SDK is not loaded
+        if (process.env.NODE_ENV === 'production') {
+          throw new Error('Payment gateway failed to initialize. Please check your internet connection and try again.');
         }
+        
+        // Development offline simulated flow (never accessible in production)
+        console.warn('Razorpay SDK not loaded in window. Running dev mode simulation.');
+        setStatus('failed');
+        throw new Error('Razorpay Checkout SDK is offline. Please ensure internet access to load Razorpay.');
       }
 
       // 2. Configure official Razorpay Checkout options

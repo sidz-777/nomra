@@ -33,18 +33,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
 
     async function checkAuth() {
       try {
-        // 1. Check local demo bypass
-        const demoStorage = typeof window !== 'undefined' ? localStorage.getItem('namora_admin_demo') : null;
-        if (demoStorage === 'true') {
-          if (mounted) {
-            setEmail('demo@namoraworld.com (Dev Demo)');
-            setIsDemo(true);
-            setLoading(false);
-          }
-          return;
-        }
-
-        // 2. Check Supabase auth session
+        // Enforce genuine Supabase server/client session verification
         const supabase = createClient();
         const { data: { session }, error } = await supabase.auth.getSession();
 
@@ -63,14 +52,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
       } catch (err) {
         console.warn('Admin auth check error:', err);
         if (mounted) {
-          const demoStorage = typeof window !== 'undefined' ? localStorage.getItem('namora_admin_demo') : null;
-          if (demoStorage === 'true') {
-            setEmail('demo@namoraworld.com (Dev Demo)');
-            setIsDemo(true);
-            setLoading(false);
-          } else {
-            router.replace('/admin/login');
-          }
+          router.replace('/admin/login');
         }
       }
     }
@@ -84,9 +66,6 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
 
   const logout = async () => {
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('namora_admin_demo');
-      }
       const supabase = createClient();
       await supabase.auth.signOut();
     } catch (e) {

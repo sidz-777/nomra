@@ -13,10 +13,23 @@ import {
 import { CartItem } from '@/lib/cart/cart-types';
 
 /**
+ * Normalizes Indian phone input: strips non-digits, removes +91 country code prefix or leading 0.
+ */
+export function normalizeIndianMobile(phone: string): string {
+  let digits = (phone || '').replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    digits = digits.slice(2);
+  } else if (digits.length === 11 && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+  return digits;
+}
+
+/**
  * Validates Indian 10-digit mobile number starting with 6, 7, 8, or 9.
  */
 export function isValidIndianMobile(phone: string): boolean {
-  const digits = phone.replace(/\D/g, '');
+  const digits = normalizeIndianMobile(phone);
   return /^[6-9]\d{9}$/.test(digits);
 }
 

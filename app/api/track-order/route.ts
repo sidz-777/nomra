@@ -1,118 +1,94 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { adminOrdersStore } from '@/lib/admin/order-memory-store';
 import { TrackingOrderSafe, TrackingItemSafe, TrackingResponse } from '@/lib/tracking/types';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+// Sliding-window rate limiter for public tracking endpoint (Max 15 inquiries per minute per IP)
+// Note: In distributed multi-instance deployment, rate limiting should be backed by an edge store (e.g. Upstash Redis).
+// This in-memory instance limiter isolates single-node abuse.
+const rateLimitMap = new Map<string, { count: number; expiresAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxRequests = 15;
+
+  const record = rateLimitMap.get(ip);
+  if (!record || record.expiresAt < now) {
+    rateLimitMap.set(ip, { count: 1, expiresAt: now + windowMs });
+    return false;
+  }
+
+  record.count += 1;
+  return record.count > maxRequests;
+}
+
+async function handleTrackingRequest(request: NextRequest, rawQuery: string) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const query = ((body && body.query) || '').toString().trim();
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown';
+    if (isRateLimited(ip)) {
+      return NextResponse.json(
+        { found: false, error: 'Too many tracking inquiries. Please wait a moment before checking again.' },
+        { status: 429 }
+      );
+    }
+
+    const query = (rawQuery || '').trim();
 
     if (!query) {
       return NextResponse.json(
-        { found: false, error: 'Query required' },
+        { found: false, error: 'Order reference required (e.g. NAM-8429).' },
         { status: 400 }
+      );
+    }
+
+    const qUpper = query.toUpperCase();
+    const isOrderNumber = qUpper.startsWith('NAM-');
+
+    // PRIVACY ENFORCEMENT:
+    // Reject arbitrary phone-only queries to prevent public scraping and enumeration of customer gift records.
+    if (!isOrderNumber) {
+      return NextResponse.json(
+        {
+          found: false,
+          message:
+            'For your security and privacy, order tracking requires your unique Order Reference (e.g. NAM-8429) provided at booking.',
+        },
+        { status: 200 }
       );
     }
 
     let foundOrder: any = null;
     let foundItems: any[] = [];
 
-    const qUpper = query.toUpperCase();
-    const isOrderNumber = qUpper.startsWith('NAM-');
-    const digits = query.replace(/\D/g, '').slice(-10);
-
-    // 1. Query Supabase
+    // Query Supabase directly
     try {
       const supabase = createAdminClient();
 
-      // 1a. Try Supabase RPC if exists
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('track_customer_order', {
-          p_query: query,
-        });
-        if (!rpcError && rpcData && rpcData.found && rpcData.order) {
-          foundOrder = rpcData.order;
-          foundItems = rpcData.items || [];
-        }
-      } catch {
-        // RPC fallback to direct select
-      }
+      const { data: dbOrders, error: dbError } = await supabase
+        .from('orders')
+        .select('*')
+        .ilike('order_number', qUpper)
+        .limit(1);
 
-      // 1b. Direct table select if RPC didn't return
-      if (!foundOrder) {
-        let orderQuery = supabase.from('orders').select('*');
-        if (isOrderNumber) {
-          orderQuery = orderQuery.ilike('order_number', qUpper);
-        } else if (digits.length >= 10) {
-          orderQuery = orderQuery.ilike('phone', `%${digits}`);
-        } else {
-          orderQuery = orderQuery.ilike('order_number', `%${query}%`);
-        }
+      if (!dbError && dbOrders && dbOrders.length > 0) {
+        foundOrder = dbOrders[0];
 
-        const { data: dbOrders, error: dbError } = await orderQuery.limit(1);
-        if (!dbError && dbOrders && dbOrders.length > 0) {
-          foundOrder = dbOrders[0];
-
-          // Query items
-          const { data: dbItems } = await supabase
-            .from('order_items')
-            .select('*')
-            .eq('order_id', foundOrder.id);
-          foundItems = Array.isArray(dbItems) ? dbItems : [];
-        }
+        // Query associated order items
+        const { data: dbItems } = await supabase
+          .from('order_items')
+          .select('*')
+          .eq('order_id', foundOrder.id);
+        foundItems = Array.isArray(dbItems) ? dbItems : [];
       }
     } catch (dbErr: any) {
-      console.warn('Database lookup note for track-order, falling back to memory store:', dbErr?.message);
-    }
-
-    // 2. Query in-memory admin store
-    if (!foundOrder) {
-      const allOrders = adminOrdersStore.getAllOrders();
-      if (isOrderNumber) {
-        foundOrder = allOrders.find(
-          (o) => o.order_number && o.order_number.toUpperCase() === qUpper
-        );
-      } else if (digits.length >= 10) {
-        foundOrder = allOrders.find(
-          (o) => o.phone && o.phone.replace(/\D/g, '').endsWith(digits)
-        );
-      } else {
-        foundOrder = allOrders.find(
-          (o) => o.order_number && o.order_number.toUpperCase().includes(qUpper)
-        );
-      }
-
-      if (foundOrder) {
-        foundItems = foundOrder.items || [];
-      }
-    }
-
-    // 3. Fallback to legacy server (port 3300) proxy if still not found
-    if (!foundOrder) {
-      try {
-        const legacyRes = await fetch('http://localhost:3300/api/track-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query }),
-          // Short timeout so it doesn't hang if server is not reachable
-          signal: AbortSignal.timeout(1500),
-        });
-        if (legacyRes.ok) {
-          const legacyData = await legacyRes.json();
-          if (legacyData && legacyData.found && legacyData.order) {
-            foundOrder = legacyData.order;
-            foundItems = legacyData.items || [];
-          }
-        }
-      } catch {
-        // Port 3300 unavailable or timed out
-      }
+      console.warn('Database lookup exception in track-order:', dbErr?.message);
     }
 
     // If order found, construct sanitized customer-safe payload
+    // STRICT PII REDACTION:
+    // Exclude customer delivery address, phone, email, admin notes, production checklist, and gift recipient notes
     if (foundOrder) {
       const safeOrder: TrackingOrderSafe = {
         order_number: String(foundOrder.order_number || ''),
@@ -138,9 +114,9 @@ export async function POST(request: NextRequest) {
         ink_style: it.ink_style || '',
         font_style: it.font_style || '',
         has_gift: Boolean(it.has_gift),
-        gift_to: it.gift_to || '',
-        gift_from: it.gift_from || '',
-        gift_message: it.gift_message || '',
+        gift_to: '', // Redacted for privacy
+        gift_from: '', // Redacted for privacy
+        gift_message: '', // Redacted for privacy
         price: Number(it.price) || 0,
       }));
 
@@ -156,15 +132,29 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         found: false,
-        message: 'No order found matching your inquiry.',
+        message: 'No order found matching your inquiry. Please check your order reference (e.g. NAM-8429).',
       },
       { status: 200 }
     );
   } catch (err: any) {
-    console.error('API /api/track-order uncaught error:', err?.message);
+    console.error('API /api/track-order error:', err?.message);
     return NextResponse.json(
-      { found: false, error: err?.message || 'Server error' },
+      { found: false, error: 'Server error processing tracking inquiry.' },
       { status: 500 }
     );
   }
+}
+
+export async function GET(request: NextRequest) {
+  const query =
+    request.nextUrl.searchParams.get('orderNumber') ||
+    request.nextUrl.searchParams.get('query') ||
+    '';
+  return handleTrackingRequest(request, query);
+}
+
+export async function POST(request: NextRequest) {
+  const body = await request.json().catch(() => ({}));
+  const query = ((body && body.query) || '').toString().trim();
+  return handleTrackingRequest(request, query);
 }

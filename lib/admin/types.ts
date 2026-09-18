@@ -83,27 +83,50 @@ export interface AdminOrderRecord {
  * Exact mirror of server.js VALID_ORDER_TRANSITIONS
  */
 export const VALID_ORDER_TRANSITIONS: Record<string, string[]> = {
-  pending_payment: ['confirmed', 'cancelled'],
-  pending_advance: ['confirmed', 'advance_paid', 'cancelled'],
-  confirmed: ['processing', 'personalization_review', 'cancelled'],
-  advance_paid: ['processing', 'personalization_review', 'in_production', 'cancelled'],
-  processing: ['personalization_review', 'ready_to_ship', 'cancelled'],
+  // Canonical Lifecycle:
+  pending_advance: ['advance_paid', 'confirmed', 'cancelled'],
+  advance_paid: ['in_production', 'processing', 'cancelled'],
   in_production: ['ready_to_ship', 'dispatched', 'cancelled'],
-  personalization_review: ['processing', 'ready_to_ship', 'cancelled'],
-  ready_to_ship: ['shipped', 'cancelled'],
-  shipped: ['out_for_delivery', 'delivered', 'returned'],
-  dispatched: ['out_for_delivery', 'delivered', 'returned'],
-  out_for_delivery: ['delivered', 'returned'],
+  ready_to_ship: ['dispatched', 'shipped', 'cancelled'],
+  dispatched: ['out_for_delivery', 'delivered', 'returned', 'cancelled'],
+  out_for_delivery: ['delivered', 'returned', 'cancelled'],
   delivered: ['returned'],
-  cancelled: ['processing'], // only allowed for explicit admin correction
+  cancelled: ['in_production', 'processing'],
   returned: [],
+
+  // Historical aliases and documented transitions for complete lifecycle compatibility:
+  pending_payment: ['advance_paid', 'confirmed', 'cancelled'],
+  confirmed: ['in_production', 'processing', 'personalization_review', 'cancelled'],
+  processing: ['personalization_review', 'in_production', 'ready_to_ship', 'dispatched', 'cancelled'],
+  personalization_review: ['in_production', 'processing', 'ready_to_ship', 'cancelled'],
+  shipped: ['out_for_delivery', 'delivered', 'returned', 'cancelled'],
 };
 
+export const VALID_ORDER_STATUSES = [
+  'pending_payment',
+  'pending_advance',
+  'confirmed',
+  'advance_paid',
+  'processing',
+  'in_production',
+  'personalization_review',
+  'ready_to_ship',
+  'shipped',
+  'dispatched',
+  'out_for_delivery',
+  'delivered',
+  'cancelled',
+  'returned',
+] as const;
+
 export function isValidOrderTransition(from: string, to: string, isAdminOverride = false): boolean {
+  if (!VALID_ORDER_STATUSES.includes(to as any)) {
+    return false;
+  }
   if (isAdminOverride) return true;
   if (!from || from === to) return true;
   const allowed = VALID_ORDER_TRANSITIONS[from];
-  return allowed ? allowed.includes(to) : true;
+  return allowed ? allowed.includes(to) : false;
 }
 
 export interface AnalyticsSummary {
