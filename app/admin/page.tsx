@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import AdminGuard, { useAdminAuth } from '@/components/admin/AdminGuard';
 import AdminLayoutClient from '@/components/admin/AdminLayoutClient';
 import { AdminOrderRecord, ProductionChecklist, CustomerProfileAdmin, ReviewAdminItem } from '@/lib/admin/types';
@@ -172,10 +173,17 @@ const WA_TEMPLATES = [
 ];
 
 export default function AdminDashboardPage() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'customers' | 'reviews'>('orders');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'customers' | 'reviews'>('dashboard');
   const [orders, setOrders] = useState<AdminOrderRecord[]>(DEMO_ORDERS);
   const [customers, setCustomers] = useState<CustomerProfileAdmin[]>([]);
   const [reviews, setReviews] = useState<ReviewAdminItem[]>([]);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [inventorySummary, setInventorySummary] = useState<any>({
+    total_products: 0,
+    low_stock_count: 0,
+    out_of_stock_count: 0,
+    healthy_count: 0,
+  });
 
   // Filters & State
   const [timeframe, setTimeframe] = useState<string>('all');
@@ -221,6 +229,34 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const fetchAnalytics = async () => {
+    try {
+      const res = await fetch(`/api/admin/analytics?timeframe=${timeframe}`);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) {
+          setAnalyticsData(json);
+        }
+      }
+    } catch (err) {
+      console.warn('Analytics fetch note:', err);
+    }
+  };
+
+  const fetchInventorySummary = async () => {
+    try {
+      const res = await fetch('/api/admin/inventory');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.summary) {
+          setInventorySummary(json.summary);
+        }
+      }
+    } catch (err) {
+      console.warn('Inventory fetch note:', err);
+    }
+  };
+
   // Load customers
   const fetchCustomers = async () => {
     try {
@@ -253,7 +289,19 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     fetchOrders();
+    fetchAnalytics();
+    fetchInventorySummary();
   }, [timeframe]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam === 'orders' || tabParam === 'customers' || tabParam === 'reviews') {
+        setActiveTab(tabParam);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'customers') fetchCustomers();
@@ -549,13 +597,24 @@ export default function AdminDashboardPage() {
         )}
 
         {/* TOP TABS NAVIGATION */}
-        <div className="flex items-center gap-2 border-b border-[#2D2722] pb-3 mb-6">
+        <div className="flex items-center gap-2 border-b border-[#2D2722] pb-3 mb-6 overflow-x-auto no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setActiveTab('dashboard')}
+            className={`px-4 py-2 rounded-lg text-xs font-mono font-medium shrink-0 transition-all ${
+              activeTab === 'dashboard'
+                ? 'bg-[#D4AF6A] text-[#141210] font-bold shadow-md'
+                : 'text-[#A39684] hover:text-[#F5EFE6] hover:bg-[#1A1816]'
+            }`}
+          >
+            📊 Operations Dashboard
+          </button>
           <button
             type="button"
             onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all ${
+            className={`px-4 py-2 rounded-lg text-xs font-mono font-medium shrink-0 transition-all ${
               activeTab === 'orders'
-                ? 'bg-[#D4AF6A] text-[#141210] font-bold'
+                ? 'bg-[#D4AF6A] text-[#141210] font-bold shadow-md'
                 : 'text-[#A39684] hover:text-[#F5EFE6] hover:bg-[#1A1816]'
             }`}
           >
@@ -564,9 +623,9 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={() => setActiveTab('customers')}
-            className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all ${
+            className={`px-4 py-2 rounded-lg text-xs font-mono font-medium shrink-0 transition-all ${
               activeTab === 'customers'
-                ? 'bg-[#D4AF6A] text-[#141210] font-bold'
+                ? 'bg-[#D4AF6A] text-[#141210] font-bold shadow-md'
                 : 'text-[#A39684] hover:text-[#F5EFE6] hover:bg-[#1A1816]'
             }`}
           >
@@ -575,15 +634,407 @@ export default function AdminDashboardPage() {
           <button
             type="button"
             onClick={() => setActiveTab('reviews')}
-            className={`px-4 py-2 rounded-lg text-xs font-mono font-medium transition-all ${
+            className={`px-4 py-2 rounded-lg text-xs font-mono font-medium shrink-0 transition-all ${
               activeTab === 'reviews'
-                ? 'bg-[#D4AF6A] text-[#141210] font-bold'
+                ? 'bg-[#D4AF6A] text-[#141210] font-bold shadow-md'
                 : 'text-[#A39684] hover:text-[#F5EFE6] hover:bg-[#1A1816]'
             }`}
           >
             ⭐ Reviews Moderation
           </button>
         </div>
+
+        {/* =================================================================== */}
+        {/* TAB 0: OPERATIONAL COMMAND CENTER DASHBOARD */}
+        {/* =================================================================== */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* Analytics Timeframe Strip */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#1A1816] p-4 rounded-xl border border-[#2D2722]">
+              <div>
+                <h2 className="font-serif text-lg font-bold text-[#F5EFE6]">Operations Command Center</h2>
+                <p className="text-xs text-[#A39684] mt-0.5 font-mono">
+                  Live business metrics, fulfillment queues, and inventory health
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {[
+                  { id: 'all', label: 'All Time' },
+                  { id: 'today', label: 'Today' },
+                  { id: '7days', label: 'Last 7 Days' },
+                  { id: '30days', label: 'Last 30 Days' },
+                ].map((tf) => (
+                  <button
+                    key={tf.id}
+                    type="button"
+                    onClick={() => setTimeframe(tf.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all ${
+                      timeframe === tf.id
+                        ? 'bg-[#D4AF6A] text-[#141210] font-bold shadow'
+                        : 'text-[#A39684] hover:text-[#F5EFE6] hover:bg-[#221F1C]'
+                    }`}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Top 4 KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#141210] p-5 rounded-xl border border-[#2D2722]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#A39684] block">Total Order Value</span>
+                <span className="text-2xl font-bold font-mono text-[#F5EFE6] block mt-1">
+                  ₹{analyticsData?.total_revenue ?? metrics.grossRevenue}
+                </span>
+                <span className="text-[11px] font-mono text-[#A39684] block mt-1">
+                  {analyticsData?.total_orders ?? metrics.totalOrders} total orders placed
+                </span>
+              </div>
+
+              <div className="bg-[#141210] p-5 rounded-xl border border-emerald-500/30">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 block">Advance Deposits Paid</span>
+                <span className="text-2xl font-bold font-mono text-emerald-400 block mt-1">
+                  ₹{analyticsData?.deposits_collected ?? metrics.depositsCollected}
+                </span>
+                <span className="text-[11px] font-mono text-[#A39684] block mt-1">
+                  Verified via Razorpay TEST
+                </span>
+              </div>
+
+              <div className="bg-[#141210] p-5 rounded-xl border border-amber-500/30">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-amber-400 block">Outstanding COD Due</span>
+                <span className="text-2xl font-bold font-mono text-amber-400 block mt-1">
+                  ₹{analyticsData?.cod_outstanding ?? metrics.codOutstanding}
+                </span>
+                <span className="text-[11px] font-mono text-[#A39684] block mt-1">
+                  Collect upon doorstep delivery
+                </span>
+              </div>
+
+              <div className="bg-[#141210] p-5 rounded-xl border border-[#2D2722]">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#A39684] block">Active In-Flight Orders</span>
+                <span className="text-2xl font-bold font-mono text-[#D4AF6A] block mt-1">
+                  {analyticsData?.active_orders ?? (metrics.inStudio + metrics.pendingAdvance + metrics.dispatched)}
+                </span>
+                <span className="text-[11px] font-mono text-[#A39684] block mt-1">
+                  In production or delivery
+                </span>
+              </div>
+            </div>
+
+            {/* Order Lifecycle Pipeline Visualizer */}
+            <div className="bg-[#141210] p-6 rounded-xl border border-[#2D2722]">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-serif text-base font-bold text-[#F5EFE6]">Order Lifecycle Pipeline</h3>
+                  <p className="text-xs font-mono text-[#A39684] mt-0.5">Real-time status progression distribution across all active orders</p>
+                </div>
+                <Link
+                  href="/admin/orders"
+                  className="text-xs font-mono text-[#D4AF6A] hover:underline flex items-center gap-1"
+                >
+                  Open Orders Manager →
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 font-mono">
+                {[
+                  { label: 'Pending', count: analyticsData?.pipeline?.pending ?? metrics.pendingAdvance, color: 'text-amber-400', border: 'border-amber-500/30', filter: 'pending_payment' },
+                  { label: 'Confirmed', count: analyticsData?.pipeline?.confirmed ?? 0, color: 'text-emerald-400', border: 'border-emerald-500/30', filter: 'confirmed' },
+                  { label: 'Studio Review', count: analyticsData?.pipeline?.studio_review ?? orders.filter(o => o.status === 'personalization_review').length, color: 'text-indigo-400', border: 'border-indigo-500/40', badge: 'Action', filter: 'personalization_review' },
+                  { label: 'In Production', count: analyticsData?.pipeline?.in_production ?? metrics.inStudio, color: 'text-purple-400', border: 'border-purple-500/30', filter: 'in_production' },
+                  { label: 'Ready to Ship', count: analyticsData?.pipeline?.ready_to_ship ?? orders.filter(o => o.status === 'ready_to_ship').length, color: 'text-cyan-400', border: 'border-cyan-500/40', badge: 'Ready', filter: 'ready_to_ship' },
+                  { label: 'In Transit', count: analyticsData?.pipeline?.in_transit ?? metrics.dispatched, color: 'text-teal-400', border: 'border-teal-500/30', filter: 'shipped' },
+                  { label: 'Delivered', count: analyticsData?.pipeline?.delivered ?? metrics.delivered, color: 'text-green-400', border: 'border-green-500/30', filter: 'delivered' },
+                  { label: 'Cancelled', count: analyticsData?.pipeline?.cancelled ?? 0, color: 'text-red-400', border: 'border-red-500/30', filter: 'cancelled' },
+                ].map((stage, idx) => (
+                  <Link
+                    key={idx}
+                    href={`/admin/orders?status=${stage.filter}`}
+                    className={`bg-[#1A1816] hover:bg-[#221F1C] p-3 rounded-lg border ${stage.border} transition-all flex flex-col justify-between`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] text-[#A39684] truncate">{stage.label}</span>
+                      {stage.badge && (
+                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+                      )}
+                    </div>
+                    <span className={`text-xl font-bold mt-2 ${stage.color}`}>{stage.count}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Action Queues: Needs Review & Ready to Ship */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* ⚡ Urgent Personalization Review Queue */}
+              <div className="bg-[#141210] p-6 rounded-xl border border-[#2D2722] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-serif text-base font-bold text-[#F5EFE6] flex items-center gap-2">
+                      <span>⚡</span> Needs Personalization Review
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 font-bold">
+                      {orders.filter((o) => o.status === 'personalization_review').length} in queue
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-[#A39684] mb-4">
+                    Orders requiring master artisan inspection of English/Arabic spelling before frame creation.
+                  </p>
+
+                  <div className="space-y-3 font-mono text-xs">
+                    {orders
+                      .filter((o) => o.status === 'personalization_review')
+                      .slice(0, 3)
+                      .map((order) => {
+                        const item = (order.items || [])[0] || {};
+                        return (
+                          <div
+                            key={order.id}
+                            className="bg-[#1A1816] p-3 rounded-lg border border-[#2D2722] flex items-center justify-between gap-3"
+                          >
+                            <div>
+                              <div className="font-bold text-[#F5EFE6]">
+                                {order.order_number} • {order.customer_name}
+                              </div>
+                              <div className="text-[11px] text-[#D4AF6A] mt-0.5">
+                                {item.english_name || '—'} {item.arabic_name ? `(${item.arabic_name})` : ''}
+                              </div>
+                            </div>
+                            <Link
+                              href={`/admin/orders/${order.id}`}
+                              className="px-3 py-1.5 bg-[#141210] hover:bg-[#D4AF6A] text-[#D4AF6A] hover:text-[#0E0D0C] border border-[#2D2722] hover:border-[#D4AF6A] rounded text-[11px] font-semibold transition-all shrink-0"
+                            >
+                              Review →
+                            </Link>
+                          </div>
+                        );
+                      })}
+                    {orders.filter((o) => o.status === 'personalization_review').length === 0 && (
+                      <div className="text-[#736B63] italic py-4 text-center">
+                        ✓ No orders pending personalization review.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Link
+                  href="/admin/orders?workflow=studio_review"
+                  className="inline-block mt-4 text-xs font-mono text-[#D4AF6A] hover:underline"
+                >
+                  View all in Studio Review →
+                </Link>
+              </div>
+
+              {/* 📦 Ready for Dispatch Handover Queue */}
+              <div className="bg-[#141210] p-6 rounded-xl border border-[#2D2722] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-serif text-base font-bold text-[#F5EFE6] flex items-center gap-2">
+                      <span>📦</span> Ready for Dispatch Handover
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-bold">
+                      {orders.filter((o) => o.status === 'ready_to_ship').length} ready
+                    </span>
+                  </div>
+                  <p className="text-xs font-mono text-[#A39684] mb-4">
+                    Framed, verified by 10-point checklist, and packaged for courier handover.
+                  </p>
+
+                  <div className="space-y-3 font-mono text-xs">
+                    {orders
+                      .filter((o) => o.status === 'ready_to_ship')
+                      .slice(0, 3)
+                      .map((order) => (
+                        <div
+                          key={order.id}
+                          className="bg-[#1A1816] p-3 rounded-lg border border-[#2D2722] flex items-center justify-between gap-3"
+                        >
+                          <div>
+                            <div className="font-bold text-[#F5EFE6]">
+                              {order.order_number} • {order.customer_name}
+                            </div>
+                            <div className="text-[11px] text-[#A39684] mt-0.5">
+                              {[order.city, order.pincode].filter(Boolean).join(', ') || 'Address ready'}
+                            </div>
+                          </div>
+                          <Link
+                            href={`/admin/orders/${order.id}`}
+                            className="px-3 py-1.5 bg-[#141210] hover:bg-[#D4AF6A] text-[#D4AF6A] hover:text-[#0E0D0C] border border-[#2D2722] hover:border-[#D4AF6A] rounded text-[11px] font-semibold transition-all shrink-0"
+                          >
+                            Dispatch →
+                          </Link>
+                        </div>
+                      ))}
+                    {orders.filter((o) => o.status === 'ready_to_ship').length === 0 && (
+                      <div className="text-[#736B63] italic py-4 text-center">
+                        ✓ All packaged frames have been handed over to couriers.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Link
+                  href="/admin/orders?workflow=ready_dispatch"
+                  className="inline-block mt-4 text-xs font-mono text-[#D4AF6A] hover:underline"
+                >
+                  View all ready for dispatch →
+                </Link>
+              </div>
+            </div>
+
+            {/* 2-Column: Inventory Health & Quick Operations Portals */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Inventory Health Monitor */}
+              <div className="bg-[#141210] p-6 rounded-xl border border-[#2D2722]">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-serif text-base font-bold text-[#F5EFE6] flex items-center gap-2">
+                    <span>🏷️</span> Inventory Health Monitor
+                  </h3>
+                  <Link
+                    href="/admin/inventory"
+                    className="text-xs font-mono text-[#D4AF6A] hover:underline"
+                  >
+                    Manage Stock →
+                  </Link>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3 font-mono text-center mb-4">
+                  <div className="bg-[#1A1816] p-3 rounded-lg border border-[#2D2722]">
+                    <div className="text-[10px] text-[#A39684] uppercase">Catalog Items</div>
+                    <div className="text-lg font-bold text-[#F5EFE6] mt-1">{inventorySummary.total_products}</div>
+                  </div>
+                  <div className="bg-[#1A1816] p-3 rounded-lg border border-amber-500/30">
+                    <div className="text-[10px] text-amber-400 uppercase">Low Stock (&le;5)</div>
+                    <div className="text-lg font-bold text-amber-400 mt-1">{inventorySummary.low_stock_count}</div>
+                  </div>
+                  <div className="bg-[#1A1816] p-3 rounded-lg border border-red-500/30">
+                    <div className="text-[10px] text-red-400 uppercase">Out of Stock</div>
+                    <div className="text-lg font-bold text-red-400 mt-1">{inventorySummary.out_of_stock_count}</div>
+                  </div>
+                </div>
+
+                <p className="text-xs font-mono text-[#A39684]">
+                  Live synchronization with Supabase products table and atomic movement ledger.
+                </p>
+              </div>
+
+              {/* Operational Hub Fast Links */}
+              <div className="bg-[#141210] p-6 rounded-xl border border-[#2D2722]">
+                <h3 className="font-serif text-base font-bold text-[#F5EFE6] mb-4 flex items-center gap-2">
+                  <span>⚡</span> Quick Management Shortcuts
+                </h3>
+
+                <div className="grid grid-cols-2 gap-3 font-mono text-xs">
+                  <Link
+                    href="/admin/orders"
+                    className="p-3 bg-[#1A1816] hover:bg-[#221F1C] border border-[#2D2722] hover:border-[#D4AF6A]/40 rounded-lg transition-all flex items-center gap-2.5"
+                  >
+                    <span className="text-base">📦</span>
+                    <div>
+                      <div className="font-bold text-[#F5EFE6]">Orders Manager</div>
+                      <div className="text-[10px] text-[#A39684]">Search &amp; filters</div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/admin/customers"
+                    className="p-3 bg-[#1A1816] hover:bg-[#221F1C] border border-[#2D2722] hover:border-[#D4AF6A]/40 rounded-lg transition-all flex items-center gap-2.5"
+                  >
+                    <span className="text-base">👥</span>
+                    <div>
+                      <div className="font-bold text-[#F5EFE6]">Customer CRM</div>
+                      <div className="text-[10px] text-[#A39684]">LTV &amp; profiles</div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/admin/inventory"
+                    className="p-3 bg-[#1A1816] hover:bg-[#221F1C] border border-[#2D2722] hover:border-[#D4AF6A]/40 rounded-lg transition-all flex items-center gap-2.5"
+                  >
+                    <span className="text-base">🏷️</span>
+                    <div>
+                      <div className="font-bold text-[#F5EFE6]">Inventory Stock</div>
+                      <div className="text-[10px] text-[#A39684]">Levels &amp; logs</div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/admin/activity"
+                    className="p-3 bg-[#1A1816] hover:bg-[#221F1C] border border-[#2D2722] hover:border-[#D4AF6A]/40 rounded-lg transition-all flex items-center gap-2.5"
+                  >
+                    <span className="text-base">📜</span>
+                    <div>
+                      <div className="font-bold text-[#F5EFE6]">Audit &amp; Activity</div>
+                      <div className="text-[10px] text-[#A39684]">Event ledger</div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Orders Preview */}
+            <div className="bg-[#141210] p-6 rounded-xl border border-[#2D2722]">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-serif text-base font-bold text-[#F5EFE6]">Recent Orders Preview</h3>
+                  <p className="text-xs font-mono text-[#A39684] mt-0.5">Most recent incoming customer commissions</p>
+                </div>
+                <Link
+                  href="/admin/orders"
+                  className="text-xs font-mono text-[#D4AF6A] hover:underline"
+                >
+                  View All {orders.length} Orders →
+                </Link>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs font-mono">
+                  <thead>
+                    <tr className="bg-[#1A1816] text-[#A39684] border-b border-[#2D2722] uppercase">
+                      <th className="p-3 font-semibold">Order</th>
+                      <th className="p-3 font-semibold">Customer</th>
+                      <th className="p-3 font-semibold">Amount</th>
+                      <th className="p-3 font-semibold">Status</th>
+                      <th className="p-3 font-semibold text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#2D2722]">
+                    {orders.slice(0, 5).map((order) => (
+                      <tr key={order.id} className="hover:bg-[#1E1B18]/60 transition-colors">
+                        <td className="p-3 font-bold text-[#D4AF6A]">
+                          <Link href={`/admin/orders/${order.id}`} className="hover:underline">
+                            {order.order_number || `#${order.id.slice(0, 8)}`}
+                          </Link>
+                        </td>
+                        <td className="p-3 text-[#F5EFE6]">
+                          {order.customer_name} ({order.phone})
+                        </td>
+                        <td className="p-3 font-bold text-[#F5EFE6]">
+                          ₹{order.total_amount ?? 0}
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#1E1B18] text-[#D4AF6A] border border-[#2D2722]">
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <Link
+                            href={`/admin/orders/${order.id}`}
+                            className="px-2.5 py-1 bg-[#1E1B18] hover:bg-[#D4AF6A] text-[#D4AF6A] hover:text-[#0E0D0C] rounded border border-[#2D2722] text-[11px] transition-all"
+                          >
+                            Inspect →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* =================================================================== */}
         {/* TAB 1: ORDERS & DISPATCH */}

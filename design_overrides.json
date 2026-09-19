@@ -1,0 +1,29 @@
+{
+  "design_sabr-wall-frame_6957": {
+    "id": "design_sabr-wall-frame_6957",
+    "slug": "sabr-wall-frame",
+    "title": "sabr wall frame",
+    "category": "crimson",
+    "category_label": "Crimson & Ruby",
+    "image_url": "https://pjswdwezptydkbvplxzn.supabase.co/storage/v1/object/public/namora-media/general/1789773385066_flat_10_off.jpg",
+    "preview_image_url": "https://pjswdwezptydkbvplxzn.supabase.co/storage/v1/object/public/namora-media/general/1789773385066_flat_10_off.jpg",
+    "description": "",
+    "overlay_config": {
+      "posX": 43,
+      "posY": 38,
+      "maxWidth": 71,
+      "fontSizeEn": 28,
+      "fontSizeAr": 34,
+      "fontEn": "'Cinzel', serif",
+      "fontAr": "'Amiri', serif",
+      "textColor": "#ffffff",
+      "textShadow": "0 2px 7px rgba(0,0,0,0.85)"
+    },
+    "collection_id": null,
+    "is_active": true,
+    "is_featured": false,
+    "sort_order": 22,
+    "created_at": "2026-09-18T23:19:56.957Z",
+    "updated_at": "2026-09-18T23:19:57.256Z"
+  }
+}

@@ -88,12 +88,29 @@ export function PersonalizationStudio({
     message: '',
   });
 
+  const [availableDesigns, setAvailableDesigns] = useState<PersianDesignItem[]>(PERSIAN_DESIGNS);
+
+  useEffect(() => {
+    async function fetchDynamicDesigns() {
+      try {
+        const res = await fetch('/api/designs');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.designs) && json.designs.length > 0) {
+            setAvailableDesigns(json.designs);
+          }
+        }
+      } catch {}
+    }
+    fetchDynamicDesigns();
+  }, []);
+
   // Listen for design selection events from gallery
   useEffect(() => {
     const handler = (e: Event) => {
       const customEvent = e as CustomEvent<string>;
       const designId = customEvent.detail;
-      const found = PERSIAN_DESIGNS.find((d) => d.id === designId);
+      const found = availableDesigns.find((d) => d.id === designId) || PERSIAN_DESIGNS.find((d) => d.id === designId);
       if (found) {
         setState((prev) => ({
           ...prev,
@@ -105,7 +122,7 @@ export function PersonalizationStudio({
     };
     window.addEventListener('namora-select-design', handler);
     return () => window.removeEventListener('namora-select-design', handler);
-  }, []);
+  }, [availableDesigns]);
 
   // Handler: Select Design
   const handleSelectDesign = (design: PersianDesignItem) => {
@@ -306,6 +323,7 @@ export function PersonalizationStudio({
             <DesignSelector
               selectedDesign={state.activeDesign}
               onSelectDesign={handleSelectDesign}
+              designs={availableDesigns}
             />
 
             <LanguageSelector

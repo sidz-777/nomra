@@ -10,7 +10,7 @@
     "price": 499,
     "deposit_price": 49,
     "cod_price": 450,
-    "updated_at": "2026-09-18T21:15:18.719Z",
+    "updated_at": "2026-09-18T23:57:08.273Z",
     "dbPersisted": true
   },
   "car-2": {
@@ -24,5 +24,10 @@
     "stock_quantity": 5,
     "in_stock": true,
     "updated_at": "2026-09-18T20:34:59.827Z"
+  },
+  "name-8": {
+    "stock_quantity": 5,
+    "in_stock": true,
+    "updated_at": "2026-09-19T11:32:10.007Z"
   }
 }

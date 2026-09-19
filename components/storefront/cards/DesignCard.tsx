@@ -29,7 +29,9 @@ export function DesignCard({
     }
   };
 
-  const imageSrc = design.image ? `/${design.image}` : design.assetPath;
+  const imageSrc = design.image
+    ? (design.image.startsWith('http') || design.image.startsWith('/') ? design.image : `/${design.image}`)
+    : (design.assetPath || '/assets/designs/design1.jpg');
 
   return (
     <div

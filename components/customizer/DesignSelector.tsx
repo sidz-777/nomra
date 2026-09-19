@@ -1,18 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import Image from 'next/image';
 import { PERSIAN_DESIGNS, PersianDesignItem } from '@/lib/storefront-data';
 import { Modal, Button } from '@/components/ui';
 
 interface DesignSelectorProps {
   selectedDesign: PersianDesignItem;
   onSelectDesign: (design: PersianDesignItem) => void;
+  designs?: PersianDesignItem[];
 }
 
 export function DesignSelector({
   selectedDesign,
   onSelectDesign,
+  designs = PERSIAN_DESIGNS,
 }: DesignSelectorProps) {
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -30,18 +31,24 @@ export function DesignSelector({
         <span style={{ float: 'right', fontSize: '0.8rem', fontWeight: 500, opacity: 0.8 }}>Change ▾</span>
       </div>
 
-      {/* Modal Dialog with all 21 Designs */}
+      {/* Modal Dialog with all Designs */}
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         title="Select Persian Frame Design"
-        description="Choose from 21 museum-quality Persian and oriental aesthetic backgrounds"
+        description="Choose from museum-quality Persian and oriental aesthetic backgrounds"
         maxWidth="xl"
       >
         <div className="max-h-[65vh] overflow-y-auto pr-1">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 p-1">
-            {PERSIAN_DESIGNS.map((design) => {
+            {designs.map((design) => {
               const isSelected = design.id === selectedDesign.id;
+              const imgSrc = design.image
+                ? design.image.startsWith('http') || design.image.startsWith('/')
+                  ? design.image
+                  : `/${design.image}`
+                : design.assetPath || '/assets/designs/design1.jpg';
+
               return (
                 <div
                   key={design.id}
@@ -56,12 +63,11 @@ export function DesignSelector({
                   }`}
                 >
                   <div className="relative w-full aspect-[1/1.414] bg-namora-soft rounded overflow-hidden">
-                    <Image
-                      src={design.assetPath}
+                    <img
+                      src={imgSrc}
                       alt={design.title}
-                      fill
-                      className="object-cover group-hover:scale-105 transition duration-300"
-                      sizes="(max-width: 640px) 50vw, 25vw"
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      loading="lazy"
                     />
                     {isSelected && (
                       <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-namora-gold text-black flex items-center justify-center font-bold text-xs shadow-md">

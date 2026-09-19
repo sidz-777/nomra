@@ -4,8 +4,9 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 
-interface AdminAuthContextType {
+export interface AdminAuthContextType {
   email: string;
+  role: 'owner' | 'admin' | 'staff';
   isDemo: boolean;
   logout: () => Promise<void>;
   loading: boolean;
@@ -13,6 +14,7 @@ interface AdminAuthContextType {
 
 const AdminAuthContext = createContext<AdminAuthContextType>({
   email: '',
+  role: 'admin',
   isDemo: false,
   logout: async () => {},
   loading: true,
@@ -22,10 +24,17 @@ export function useAdminAuth() {
   return useContext(AdminAuthContext);
 }
 
-export default function AdminGuard({ children }: { children: React.ReactNode }) {
+export default function AdminGuard({
+  children,
+  requiredRoles,
+}: {
+  children: React.ReactNode;
+  requiredRoles?: string[];
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState<string>('');
+  const [role, setRole] = useState<'owner' | 'admin' | 'staff'>('admin');
   const [isDemo, setIsDemo] = useState<boolean>(false);
 
   useEffect(() => {
@@ -85,7 +94,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <AdminAuthContext.Provider value={{ email, isDemo, logout, loading }}>
+    <AdminAuthContext.Provider value={{ email, role, isDemo, logout, loading }}>
       {children}
     </AdminAuthContext.Provider>
   );

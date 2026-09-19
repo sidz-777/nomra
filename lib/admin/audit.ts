@@ -12,13 +12,13 @@ export async function logAdminActivity(
 ): Promise<void> {
   try {
     const supabase = createAdminClient();
-    await supabase.from('admin_activity_logs').insert([
+    await supabase.from('admin_audit_logs').insert([
       {
-        admin_user_id: adminUserId,
+        admin_email: adminUserId.includes('@') ? adminUserId : 'admin@namoraworld.com',
         action,
         entity_type: entityType,
         entity_id: entityId,
-        metadata,
+        details: metadata || {},
         created_at: new Date().toISOString(),
       },
     ]);

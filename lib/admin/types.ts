@@ -172,3 +172,60 @@ export interface StoreSettingsPayload {
   waPhone: string;
   upiId: string;
 }
+
+export const CHECKLIST_STEPS = [
+  { id: 'step1', label: '1. Customer contact & shipping address verified' },
+  { id: 'step2', label: '2. Frame design & size (A4) confirmed' },
+  { id: 'step3', label: '3. English spelling verified' },
+  { id: 'step4', label: '4. Arabic calligraphy spelling verified' },
+  { id: 'step5', label: '5. Font style & layout checked' },
+  { id: 'step6', label: '6. Finish & moulding quality inspected' },
+  { id: 'step7', label: '7. Live preview alignment matched' },
+  { id: 'step8', label: '8. Frame assembled with crystal acrylic glass' },
+  { id: 'step9', label: '9. Final quality check & scratch inspection' },
+  { id: 'step10', label: '10. Gift ribbon / packaging & note card placed' },
+] as const;
+
+export const STATUS_LABELS: Record<string, string> = {
+  pending_payment: 'Pending Payment',
+  pending_advance: 'Pending Advance',
+  confirmed: 'Confirmed',
+  advance_paid: 'Advance Paid',
+  processing: 'Processing',
+  in_production: 'In Production',
+  personalization_review: 'Studio Review',
+  ready_to_ship: 'Ready to Ship',
+  shipped: 'Shipped',
+  dispatched: 'Dispatched',
+  out_for_delivery: 'Out for Delivery',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+  returned: 'Returned',
+};
+
+export const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  pending_payment: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
+  pending_advance: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
+  confirmed: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30' },
+  advance_paid: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30' },
+  processing: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30' },
+  in_production: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30' },
+  personalization_review: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/30' },
+  ready_to_ship: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/30' },
+  shipped: { bg: 'bg-teal-500/10', text: 'text-teal-400', border: 'border-teal-500/30' },
+  dispatched: { bg: 'bg-teal-500/10', text: 'text-teal-400', border: 'border-teal-500/30' },
+  out_for_delivery: { bg: 'bg-sky-500/10', text: 'text-sky-400', border: 'border-sky-500/30' },
+  delivered: { bg: 'bg-green-500/10', text: 'text-green-400', border: 'border-green-500/30' },
+  cancelled: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30' },
+  returned: { bg: 'bg-rose-500/10', text: 'text-rose-400', border: 'border-rose-500/30' },
+};
+
+export const COURIERS = [
+  'BlueDart Air',
+  'Delhivery Express',
+  'DTDC Prime',
+  'India Post Speed Post',
+  'Shadowfax',
+  'Ekart Logistics',
+  'Self Handover',
+] as const;

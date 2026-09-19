@@ -1,26 +1,37 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DesignCard } from './cards/DesignCard';
-import { PERSIAN_DESIGNS } from '@/lib/storefront-data';
+import { PERSIAN_DESIGNS, PersianDesignItem } from '@/lib/storefront-data';
 
 export function PersianCollection() {
   const [activeCategory, setActiveCategory] = useState<
     'all' | 'crimson' | 'blue' | 'pastel' | 'antique'
   >('all');
 
-  const [designs, setDesigns] = useState(PERSIAN_DESIGNS);
+  const [designs, setDesigns] = useState<PersianDesignItem[]>(PERSIAN_DESIGNS);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let mounted = true;
-    async function syncPrices() {
+    async function loadDynamicDesigns() {
       try {
-        const res = await fetch('/api/products');
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.success && Array.isArray(data.products) && mounted) {
+        // 1. Fetch live active designs from CMS endpoint
+        const designsRes = await fetch('/api/designs');
+        let liveDesigns = PERSIAN_DESIGNS;
+        if (designsRes.ok) {
+          const dData = await designsRes.json();
+          if (dData && dData.success && Array.isArray(dData.designs) && dData.designs.length > 0) {
+            liveDesigns = dData.designs;
+          }
+        }
+
+        // 2. Sync any real-time price overrides from products endpoint
+        const productsRes = await fetch('/api/products');
+        if (productsRes.ok) {
+          const pData = await productsRes.json();
+          if (pData && pData.success && Array.isArray(pData.products)) {
             const priceMap = new Map();
-            data.products.forEach((p: any) => {
+            pData.products.forEach((p: any) => {
               priceMap.set(p.id, {
                 price: Number(p.price) || 499,
                 depositPrice: Number(p.deposit_price) || 49,
@@ -28,25 +39,30 @@ export function PersianCollection() {
               });
             });
 
-            setDesigns((prev) =>
-              prev.map((item) => {
-                const live = priceMap.get(item.id);
-                if (live) {
-                  return {
-                    ...item,
-                    price: live.price,
-                    depositPrice: live.depositPrice,
-                    codPrice: live.codPrice,
-                  };
-                }
-                return item;
-              })
-            );
+            liveDesigns = liveDesigns.map((item: any) => {
+              const live = priceMap.get(item.id);
+              if (live) {
+                return {
+                  ...item,
+                  price: live.price,
+                  depositPrice: live.depositPrice,
+                  codPrice: live.codPrice,
+                };
+              }
+              return item;
+            });
           }
         }
-      } catch {}
+
+        if (mounted) {
+          setDesigns(liveDesigns);
+        }
+      } catch (e) {
+        // Resilient fallback: keeps PERSIAN_DESIGNS untouched
+      }
     }
-    syncPrices();
+
+    loadDynamicDesigns();
     return () => {
       mounted = false;
     };
@@ -63,6 +79,17 @@ export function PersianCollection() {
             (d.category as string) === 'antique'
         )
       : designs.filter((d) => d.category === activeCategory);
+
+  const countAll = designs.length;
+  const countCrimson = designs.filter((d) => d.category === 'crimson').length;
+  const countBlue = designs.filter((d) => d.category === 'blue').length;
+  const countPastel = designs.filter((d) => d.category === 'pastel').length;
+  const countAntique = designs.filter(
+    (d) =>
+      d.category === 'amber' ||
+      d.category === 'vintage' ||
+      (d.category as string) === 'antique'
+  ).length;
 
   return (
     <section id="designs" className="section">
@@ -84,7 +111,7 @@ export function PersianCollection() {
             onClick={() => setActiveCategory('all')}
           >
             <span className="filter-dot"></span> All Designs{' '}
-            <span className="filter-count">21</span>
+            <span className="filter-count">{countAll}</span>
           </button>
           <button
             type="button"
@@ -92,7 +119,7 @@ export function PersianCollection() {
             onClick={() => setActiveCategory('crimson')}
           >
             <span className="filter-color-swatch swatch-crimson"></span> Persian Crimson{' '}
-            <span className="filter-count">5</span>
+            <span className="filter-count">{countCrimson}</span>
           </button>
           <button
             type="button"
@@ -100,7 +127,7 @@ export function PersianCollection() {
             onClick={() => setActiveCategory('blue')}
           >
             <span className="filter-color-swatch swatch-blue"></span> Royal Blue &amp; Teal{' '}
-            <span className="filter-count">3</span>
+            <span className="filter-count">{countBlue}</span>
           </button>
           <button
             type="button"
@@ -108,7 +135,7 @@ export function PersianCollection() {
             onClick={() => setActiveCategory('pastel')}
           >
             <span className="filter-color-swatch swatch-pastel"></span> Blush &amp; Rose{' '}
-            <span className="filter-count">7</span>
+            <span className="filter-count">{countPastel}</span>
           </button>
           <button
             type="button"
@@ -116,7 +143,7 @@ export function PersianCollection() {
             onClick={() => setActiveCategory('antique')}
           >
             <span className="filter-color-swatch swatch-antique"></span> Heritage &amp; Gold{' '}
-            <span className="filter-count">6</span>
+            <span className="filter-count">{countAntique}</span>
           </button>
         </div>
 

@@ -15,7 +15,9 @@ export function ReadyStockCard({ product }: ReadyStockCardProps) {
   const itemPrice = Number(product.price) || 499;
   const itemDeposit = Number(product.depositPrice != null ? product.depositPrice : 49);
   const itemCod = itemPrice - itemDeposit;
-  const imgSrc = product.image ? `/${product.image}` : product.assetPath;
+  const imgSrc = product.image
+    ? (product.image.startsWith('http') || product.image.startsWith('/') ? product.image : `/${product.image}`)
+    : (product.assetPath || '/assets/products/car-1.jpg');
 
   const handleWhatsApp = () => {
     const msg = [

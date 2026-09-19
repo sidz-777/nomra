@@ -6,8 +6,13 @@ import { READY_STOCK_PRODUCTS, PERSIAN_DESIGNS } from '@/lib/storefront-data';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const url = new URL(req.url);
+    const typeFilter = url.searchParams.get('type');
+    const categoryFilter = url.searchParams.get('category');
+    const showAll = url.searchParams.get('all') === 'true';
+
     // 1. Load catalog overrides from disk
     const overridesPath = path.join(process.cwd(), 'catalog_overrides.json');
     let priceOverrides: Record<string, any> = {};
@@ -24,15 +29,27 @@ export async function GET() {
     // 2. Query Supabase directly
     try {
       const supabase = createAdminClient();
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('id', { ascending: true });
+      let query = supabase.from('products').select('*');
+
+      if (!showAll) {
+        // Query active products; handle both null and true
+        query = query.or('is_active.is.null,is_active.eq.true');
+      }
+
+      query = query.order('id', { ascending: true });
+
+      const { data, error } = await query;
 
       if (!error && data && Array.isArray(data) && data.length > 0) {
         rawProducts = data;
       } else if (error) {
-        console.error('Products route Supabase query error:', error.message);
+        // If is_active column doesn't exist yet, query without filter
+        const fallbackRes = await supabase.from('products').select('*').order('id', { ascending: true });
+        if (!fallbackRes.error && fallbackRes.data && Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
+          rawProducts = fallbackRes.data;
+        } else {
+          console.error('Products route Supabase query error:', error.message);
+        }
       }
     } catch (e: any) {
       console.error('Products route catch error:', e?.message);
@@ -54,6 +71,7 @@ export async function GET() {
         cod_price: p.codPrice,
         stock_quantity: 5,
         in_stock: true,
+        is_active: true,
       }));
 
       const persianProducts = PERSIAN_DESIGNS.map((p) => ({
@@ -68,13 +86,14 @@ export async function GET() {
         cod_price: 450,
         stock_quantity: 10,
         in_stock: true,
+        is_active: true,
       }));
 
       rawProducts = [...readyProducts, ...persianProducts];
     }
 
-    // 4. Apply authoritative disk overrides (prices, deposit, cod, stock)
-    const mergedProducts = rawProducts.map((p) => {
+    // 4. Apply authoritative disk overrides (prices, deposit, cod, stock, is_active)
+    let mergedProducts = rawProducts.map((p) => {
       const override = priceOverrides[p.id];
       if (override) {
         const price = override.price !== undefined ? Number(override.price) : p.price;
@@ -82,6 +101,7 @@ export async function GET() {
         const codPrice = override.cod_price !== undefined ? Number(override.cod_price) : price - depositPrice;
         const stockQuantity = override.stock_quantity !== undefined ? Number(override.stock_quantity) : p.stock_quantity;
         const inStock = override.in_stock !== undefined ? Boolean(override.in_stock) : p.in_stock;
+        const isActive = override.is_active !== undefined ? Boolean(override.is_active) : (p.is_active !== false);
 
         return {
           ...p,
@@ -90,10 +110,38 @@ export async function GET() {
           cod_price: codPrice,
           stock_quantity: stockQuantity,
           in_stock: inStock,
+          is_active: isActive,
         };
       }
-      return p;
+      return {
+        ...p,
+        is_active: p.is_active !== false,
+      };
     });
+
+    // 4b. Merge any custom/new products in priceOverrides that aren't in rawProducts
+    const rawIds = new Set(rawProducts.map((p) => p.id));
+    Object.keys(priceOverrides).forEach((id) => {
+      const item = priceOverrides[id];
+      if (!rawIds.has(id) && item && item.title) {
+        mergedProducts.push({
+          id,
+          ...item,
+          is_active: item.is_active !== false,
+        });
+      }
+    });
+
+    // 5. Apply filters
+    if (!showAll) {
+      mergedProducts = mergedProducts.filter((p) => p.is_active !== false);
+    }
+    if (typeFilter) {
+      mergedProducts = mergedProducts.filter((p) => p.type === typeFilter);
+    }
+    if (categoryFilter && categoryFilter !== 'all') {
+      mergedProducts = mergedProducts.filter((p) => p.category === categoryFilter);
+    }
 
     return NextResponse.json({
       success: true,

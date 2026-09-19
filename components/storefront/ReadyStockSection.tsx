@@ -1,54 +1,49 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ReadyStockCard } from './cards/ReadyStockCard';
-import { READY_STOCK_PRODUCTS } from '@/lib/storefront-data';
+import { READY_STOCK_PRODUCTS, ReadyStockItem } from '@/lib/storefront-data';
 
 export function ReadyStockSection() {
   const [activeCategory, setActiveCategory] = useState<
     'all' | 'cars' | 'sports' | 'names' | 'pop'
   >('all');
 
-  const [products, setProducts] = useState(READY_STOCK_PRODUCTS);
+  const [products, setProducts] = useState<ReadyStockItem[]>(READY_STOCK_PRODUCTS);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let mounted = true;
-    async function syncPrices() {
+    async function loadDynamicReadyStock() {
       try {
-        const res = await fetch('/api/products');
+        const res = await fetch('/api/products?type=ready_stock');
         if (res.ok) {
           const data = await res.json();
-          if (data && data.success && Array.isArray(data.products) && mounted) {
-            const priceMap = new Map();
-            data.products.forEach((p: any) => {
-              priceMap.set(p.id, {
+          if (data && data.success && Array.isArray(data.products) && data.products.length > 0 && mounted) {
+            const mapped: ReadyStockItem[] = data.products
+              .filter((p: any) => p.is_active !== false)
+              .map((p: any) => ({
+                id: p.id,
+                category: (p.category || 'cars') as any,
+                categoryLabel: p.category_label || p.category || 'Ready Stock',
+                title: p.title,
+                subtitle: p.subtitle || '',
+                image: p.image_url || p.image || 'car-1.jpg',
+                assetPath: p.image_url || p.image || '/assets/products/car-1.jpg',
+                tag: p.tag || 'READY TO SHIP',
+                tagClass: p.tag_class || 'badge-popular',
                 price: Number(p.price) || 499,
                 depositPrice: Number(p.deposit_price) || 49,
                 codPrice: Number(p.cod_price) || 450,
-                inStock: p.in_stock !== false,
-              });
-            });
-
-            setProducts((prev) =>
-              prev.map((item) => {
-                const live = priceMap.get(item.id);
-                if (live) {
-                  return {
-                    ...item,
-                    price: live.price,
-                    depositPrice: live.depositPrice,
-                    codPrice: live.codPrice,
-                  };
-                }
-                return item;
-              })
-            );
+              }));
+            setProducts(mapped);
           }
         }
-      } catch {}
+      } catch {
+        // Resilient fallback: keeps READY_STOCK_PRODUCTS untouched
+      }
     }
-    syncPrices();
+    loadDynamicReadyStock();
     return () => {
       mounted = false;
     };
@@ -58,6 +53,12 @@ export function ReadyStockSection() {
     activeCategory === 'all'
       ? products
       : products.filter((p) => p.category === activeCategory);
+
+  const countAll = products.length;
+  const countCars = products.filter((p) => p.category === 'cars').length;
+  const countSports = products.filter((p) => p.category === 'sports').length;
+  const countNames = products.filter((p) => p.category === 'names').length;
+  const countPop = products.filter((p) => p.category === 'pop').length;
 
   return (
     <section
@@ -87,35 +88,35 @@ export function ReadyStockSection() {
               className={`ready-filter-pill ${activeCategory === 'all' ? 'active' : ''}`}
               onClick={() => setActiveCategory('all')}
             >
-              ✨ All Ready Stock <span className="ready-count" id="countAll">37</span>
+              ✨ All Ready Stock <span className="ready-count" id="countAll">{countAll}</span>
             </button>
             <button
               type="button"
               className={`ready-filter-pill ${activeCategory === 'cars' ? 'active' : ''}`}
               onClick={() => setActiveCategory('cars')}
             >
-              🏎️ Supercars &amp; Autos <span className="ready-count" id="countCars">10</span>
+              🏎️ Supercars &amp; Autos <span className="ready-count" id="countCars">{countCars}</span>
             </button>
             <button
               type="button"
               className={`ready-filter-pill ${activeCategory === 'sports' ? 'active' : ''}`}
               onClick={() => setActiveCategory('sports')}
             >
-              ⚽ Sports Champions <span className="ready-count" id="countSports">14</span>
+              ⚽ Sports Champions <span className="ready-count" id="countSports">{countSports}</span>
             </button>
             <button
               type="button"
               className={`ready-filter-pill ${activeCategory === 'names' ? 'active' : ''}`}
               onClick={() => setActiveCategory('names')}
             >
-              ✒️ Ready Names &amp; Faith <span className="ready-count" id="countNames">11</span>
+              ✒️ Ready Names &amp; Faith <span className="ready-count" id="countNames">{countNames}</span>
             </button>
             <button
               type="button"
               className={`ready-filter-pill ${activeCategory === 'pop' ? 'active' : ''}`}
               onClick={() => setActiveCategory('pop')}
             >
-              🎬 Pop Culture <span className="ready-count" id="countPop">2</span>
+              🎬 Pop Culture <span className="ready-count" id="countPop">{countPop}</span>
             </button>
           </div>
         </div>

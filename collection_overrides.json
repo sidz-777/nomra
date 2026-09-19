@@ -1,0 +1,26 @@
+{
+  "col_qa_col_1789775089860_1440": {
+    "id": "col_qa_col_1789775089860_1440",
+    "slug": "qa-col-1789775089860",
+    "title": "PHASE1 QA COLLECTION — DELETE AFTER VERIFICATION",
+    "description": "",
+    "image_url": "/assets/designs/design1.jpg",
+    "type": "custom",
+    "is_active": true,
+    "sort_order": 3,
+    "created_at": "2026-09-18T23:44:51.440Z",
+    "updated_at": "2026-09-18T23:44:51.655Z"
+  },
+  "col_qa_col_1789775859758_1330": {
+    "id": "col_qa_col_1789775859758_1330",
+    "slug": "qa-col-1789775859758",
+    "title": "PHASE1 QA COLLECTION — DELETE AFTER VERIFICATION",
+    "description": "",
+    "image_url": "/assets/designs/design1.jpg",
+    "type": "custom",
+    "is_active": true,
+    "sort_order": 4,
+    "created_at": "2026-09-18T23:57:41.330Z",
+    "updated_at": "2026-09-18T23:57:41.525Z"
+  }
+}
