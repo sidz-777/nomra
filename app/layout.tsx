@@ -93,6 +93,7 @@ export const viewport: Viewport = {
 
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { ScrollReveal } from '@/components/layout/ScrollReveal';
+import { AttributionTracker } from '@/components/storefront/AttributionTracker';
 
 export default function RootLayout({
   children,
@@ -108,6 +109,7 @@ export default function RootLayout({
     >
       <body className="bg-namora-bg text-namora-ink antialiased min-h-screen">
         <ThemeProvider>
+          <AttributionTracker />
           <ScrollReveal />
           {children}
         </ThemeProvider>

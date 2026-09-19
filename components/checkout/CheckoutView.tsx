@@ -4,11 +4,12 @@ import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/components/cart';
-import { CheckoutFormData } from '@/lib/checkout/checkout-types';
+import { CheckoutFormData, CreateOrderPayload } from '@/lib/checkout/checkout-types';
 import {
   validateCheckoutForm,
   generateIdempotencyKey,
 } from '@/lib/checkout/checkout-validation';
+import { getStoredAttribution } from '@/lib/analytics/attribution-client';
 import { CustomerDetailsForm } from './CustomerDetailsForm';
 import { OrderReviewSummary } from './OrderReviewSummary';
 import { Container } from '@/components/layout/Container';
@@ -67,7 +68,8 @@ export function CheckoutView() {
     setSubmitError(null);
 
     try {
-      const payload = {
+      const attribution = getStoredAttribution();
+      const payload: CreateOrderPayload = {
         customer: {
           name: formData.name.trim(),
           phone: formData.phone.trim(),
@@ -84,6 +86,11 @@ export function CheckoutView() {
         items,
         gift,
         idempotencyKey: idempotencyKeyRef.current,
+        utm_source: attribution.utm_source,
+        utm_medium: attribution.utm_medium,
+        utm_campaign: attribution.utm_campaign,
+        referrer: attribution.referrer,
+        campaign_id: attribution.campaign_id,
       };
 
       const res = await fetch('/api/checkout/create-order', {

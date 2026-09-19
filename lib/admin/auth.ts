@@ -39,10 +39,12 @@ export async function requireAdmin(
     ((adminSecretHeader && adminSecretHeader === expectedAdminSecret) ||
       (token && token === expectedAdminSecret))
   ) {
+    const roleHeader = req.headers.get('x-admin-role') as AdminRole;
+    const role: AdminRole = roleHeader && ['owner', 'admin', 'staff'].includes(roleHeader) ? roleHeader : 'owner';
     return {
       authorized: true,
       user: { id: 'service-worker', email: 'system@namoraworld.com' },
-      role: 'owner',
+      role,
     };
   }
 

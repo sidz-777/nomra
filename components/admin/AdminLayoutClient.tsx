@@ -23,6 +23,7 @@ export default function AdminLayoutClient({
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
 
   const isDashboardActive = pathname === '/admin' && !activeTab;
+  const isAnalyticsActive = pathname === '/admin/analytics';
   const isOrdersActive = pathname === '/admin/orders' || (pathname === '/admin' && activeTab === 'orders');
   const isCustomersActive = pathname === '/admin/customers' || (pathname === '/admin' && activeTab === 'customers');
   const isReviewsActive = pathname === '/admin/reviews' || (pathname === '/admin' && activeTab === 'reviews');
@@ -56,6 +57,20 @@ export default function AdminLayoutClient({
       >
         <span className="text-base">📊</span>
         <span>Operations Dashboard</span>
+      </Link>
+
+      {/* Analytics & BI */}
+      <Link
+        href="/admin/analytics"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isAnalyticsActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">📈</span>
+        <span>Analytics &amp; BI</span>
       </Link>
 
       {/* Orders & Dispatch */}

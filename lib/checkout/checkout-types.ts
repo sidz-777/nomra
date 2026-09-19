@@ -39,6 +39,11 @@ export interface CreateOrderPayload {
   items: CartItem[];
   gift?: CartGiftOptions;
   idempotencyKey: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  referrer?: string;
+  campaign_id?: string;
 }
 
 export interface PaymentHandoffContract {

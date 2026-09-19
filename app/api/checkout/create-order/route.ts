@@ -15,7 +15,18 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: Request) {
   try {
     const body: CreateOrderPayload = await req.json();
-    const { customer, address, items, gift, idempotencyKey } = body;
+    const {
+      customer,
+      address,
+      items,
+      gift,
+      idempotencyKey,
+      utm_source,
+      utm_medium,
+      utm_campaign,
+      referrer,
+      campaign_id,
+    } = body;
 
     const supabase = createAdminClient();
 
@@ -239,6 +250,56 @@ export async function POST(req: Request) {
 
     const trackingToken = crypto.randomBytes(16).toString('hex');
 
+    // Deterministic Attribution & Campaign Verification
+    const attributionData: Record<string, any> = {};
+    if (utm_source) attributionData.utm_source = String(utm_source).trim().slice(0, 100);
+    if (utm_medium) attributionData.utm_medium = String(utm_medium).trim().slice(0, 100);
+    if (utm_campaign) attributionData.utm_campaign = String(utm_campaign).trim().slice(0, 100);
+    if (referrer) attributionData.referrer = String(referrer).trim().slice(0, 255);
+
+    let resolvedCampaignId: string | null = null;
+    const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
+    if (campaign_id && isUuid(String(campaign_id).trim())) {
+      const { data: cRow } = await supabase
+        .from('campaigns')
+        .select('id')
+        .eq('id', String(campaign_id).trim())
+        .maybeSingle();
+      if (cRow) {
+        resolvedCampaignId = cRow.id;
+      }
+    }
+
+    // If no explicit campaign_id, check for exact match on active campaign name.
+    // Determinism rule: exactly 1 match → use that UUID.
+    //                   0 matches      → NULL (campaign doesn't exist).
+    //                   2+ matches     → NULL (ambiguous; never arbitrarily select).
+    // Never use .maybeSingle() here — it silently picks one row when multiple exist.
+    if (!resolvedCampaignId && utm_campaign) {
+      const cleanName = String(utm_campaign).trim();
+      if (cleanName.length > 0) {
+        const { data: nameMatches, error: nameMatchErr } = await supabase
+          .from('campaigns')
+          .select('id')
+          .ilike('name', cleanName)
+          .eq('is_active', true)
+          .limit(2);
+
+        if (!nameMatchErr && nameMatches && nameMatches.length === 1) {
+          // Exactly one active campaign with this name — deterministic resolution.
+          resolvedCampaignId = nameMatches[0].id;
+        }
+        // 0 matches: campaign doesn't exist → leave resolvedCampaignId null.
+        // 2+ matches: ambiguous name; multiple active campaigns share this name.
+        //             Do NOT guess. Leave resolvedCampaignId null.
+      }
+    }
+
+    if (resolvedCampaignId) {
+      attributionData.campaign_id = resolvedCampaignId;
+    }
+
     // 4. Primary: Invoke PostgreSQL RPC create_secure_order
     try {
       const supabase = createAdminClient();
@@ -252,13 +313,24 @@ export async function POST(req: Request) {
         orderId = rpcData.order_id;
         orderNumber = rpcData.order_number;
 
-        // Persist tracking_token to orders or settings fallback
+        // Persist tracking_token and attribution to orders
+        const updatePayload: Record<string, any> = {
+          tracking_token: trackingToken,
+          ...attributionData,
+        };
+
         const { error: tokenUpdateErr } = await supabase
           .from('orders')
-          .update({ tracking_token: trackingToken })
+          .update(updatePayload)
           .eq('id', orderId);
 
         if (tokenUpdateErr) {
+          // Graceful fallback to tracking_token only if attribution columns not ready
+          await supabase
+            .from('orders')
+            .update({ tracking_token: trackingToken })
+            .eq('id', orderId);
+
           await supabase.from('settings').upsert(
             {
               key: `tracking_token:${trackingToken}`,
@@ -310,25 +382,26 @@ export async function POST(req: Request) {
             const { error: setClaimErr } = await supabase
               .from('settings')
               .insert({
-                key: `idemp_claim:${key}`,
-                value: 'processing',
-                description: 'Atomic checkout idempotency lock',
+                key: `idemp:${key}`,
+                value: JSON.stringify({ status: 'processing', timestamp: new Date().toISOString() }),
+                description: 'Idempotency claim',
               });
 
             if (setClaimErr && setClaimErr.code === '23505') {
-              // Another request is processing this key! Wait for completed response payload
               for (let wait = 0; wait < 12; wait++) {
                 await new Promise((r) => setTimeout(r, 250));
-                const { data: setRow } = await supabase
+                const { data: existingSet } = await supabase
                   .from('settings')
                   .select('value')
                   .eq('key', `idemp:${key}`)
                   .maybeSingle();
 
-                if (setRow && setRow.value) {
+                if (existingSet && existingSet.value) {
                   try {
-                    const cached = JSON.parse(setRow.value);
-                    return NextResponse.json(cached);
+                    const parsed = JSON.parse(existingSet.value);
+                    if (parsed.success && parsed.orderId) {
+                      return NextResponse.json(parsed);
+                    }
                   } catch {}
                 }
               }
@@ -339,7 +412,7 @@ export async function POST(req: Request) {
         const rnd = Math.floor(1000 + Math.random() * 9000);
         const candidateNumber = `NAM-${rnd}`;
 
-        let insertPayload: Record<string, any> = {
+        const insertPayload: any = {
           order_number: candidateNumber,
           customer_name: customer.name.trim(),
           phone: phoneDigits,
@@ -354,6 +427,7 @@ export async function POST(req: Request) {
           payment_method: 'deposit_cod',
           payment_status: 'unpaid',
           tracking_token: trackingToken,
+          ...attributionData,
         };
 
         let { data: newOrder, error: insertErr } = await supabase
@@ -362,9 +436,21 @@ export async function POST(req: Request) {
           .select('id, order_number')
           .single();
 
-        // Graceful fallback if tracking_token column not yet present in remote Supabase
-        if (insertErr && (insertErr.message?.includes('tracking_token') || insertErr.code === '42703')) {
+        // Graceful fallback if tracking_token or attribution columns not yet present in remote Supabase
+        if (
+          insertErr &&
+          (insertErr.message?.includes('tracking_token') ||
+            insertErr.message?.includes('utm_') ||
+            insertErr.message?.includes('campaign_id') ||
+            insertErr.message?.includes('referrer') ||
+            insertErr.code === '42703')
+        ) {
           delete insertPayload.tracking_token;
+          delete insertPayload.utm_source;
+          delete insertPayload.utm_medium;
+          delete insertPayload.utm_campaign;
+          delete insertPayload.referrer;
+          delete insertPayload.campaign_id;
           const retry = await supabase
             .from('orders')
             .insert(insertPayload)
