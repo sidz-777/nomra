@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isValidOrderTransition, VALID_ORDER_TRANSITIONS } from '@/lib/admin/types';
 import { logAdminActivity } from '@/lib/admin/audit';
+import { triggerOrderStatusTransition } from '@/lib/notifications/triggers';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,6 +102,18 @@ export async function POST(request: NextRequest) {
       },
       adminUser
     );
+
+    // 5. Trigger durable notification transition (non-blocking)
+    triggerOrderStatusTransition(
+      {
+        ...order,
+        ...patchData,
+        tracking_url: order.tracking_token ? `/track?token=${order.tracking_token}` : `/track?orderNumber=${order.order_number}`,
+      },
+      new_status
+    ).catch((notifErr) => {
+      console.warn('[Update Status] Non-blocking notification note:', notifErr?.message);
+    });
 
     return NextResponse.json({
       success: true,

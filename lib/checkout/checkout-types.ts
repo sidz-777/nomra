@@ -61,6 +61,8 @@ export interface CreateOrderResponse {
   frameCount?: number;
   status?: string;
   paymentHandoff?: PaymentHandoffContract;
+  trackingToken?: string;
+  trackingUrl?: string;
   error?: string;
 }
 

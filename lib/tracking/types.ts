@@ -1,6 +1,6 @@
 /**
  * NAMORA Customer Order Tracking Types
- * Exact domain contracts for customer-facing order tracking & status milestones.
+ * Exact domain contracts for customer-facing order tracking, privacy boundaries, & status milestones.
  */
 
 export interface TrackingItemSafe {
@@ -15,6 +15,7 @@ export interface TrackingItemSafe {
   gift_from?: string;
   gift_message?: string;
   price: number;
+  quantity?: number;
 }
 
 export interface TrackingOrderSafe {
@@ -23,14 +24,22 @@ export interface TrackingOrderSafe {
   status: string;
   payment_status: string;
   courier_name?: string;
+  carrier?: string;
   tracking_number?: string;
   tracking_url?: string;
+  estimated_delivery_date?: string;
   total_amount: number;
   deposit_amount: number;
   cod_amount: number;
   created_at?: string;
   dispatched_at?: string;
   delivered_at?: string;
+  destination_summary?: {
+    city: string;
+    state: string;
+    pincode: string;
+    masked_name: string;
+  };
 }
 
 export interface TrackingResponse {
@@ -53,4 +62,5 @@ export interface TrackingMilestone {
   desc: string;
   stepNumber: number;
   state: 'completed' | 'active' | 'upcoming';
+  timestamp?: string;
 }

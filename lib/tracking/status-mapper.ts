@@ -1,6 +1,6 @@
 /**
  * NAMORA Order Status Mapping & Milestone Definitions
- * Exact reproduction of legacy status map, color hierarchy, and 5-milestone stepper logic.
+ * Comprehensive mapping of authoritative backend states to intuitive customer milestones.
  */
 
 import { StatusConfig, TrackingMilestone, TrackingOrderSafe } from './types';
@@ -43,40 +43,40 @@ export const ORDER_STATUS_MAP: Record<string, StatusConfig> = {
     step: 2,
   },
   personalization_review: {
-    label: 'Calligraphy Review',
+    label: 'Personalization Review',
     color: '#C084FC',
     bg: 'rgba(192, 132, 252, 0.15)',
-    step: 2,
+    step: 3,
   },
   ready_to_ship: {
     label: 'Packed & Quality Verified',
     color: '#34D399',
     bg: 'rgba(52, 211, 153, 0.15)',
-    step: 3,
+    step: 4,
   },
   shipped: {
     label: 'Dispatched with Courier',
     color: '#D4AF6A',
     bg: 'rgba(212, 175, 106, 0.15)',
-    step: 4,
+    step: 5,
   },
   dispatched: {
     label: 'Dispatched with Courier',
     color: '#D4AF6A',
     bg: 'rgba(212, 175, 106, 0.15)',
-    step: 4,
-  },
-  out_for_delivery: {
-    label: 'Out for Delivery Today',
-    color: '#FB923C',
-    bg: 'rgba(251, 146, 60, 0.15)',
     step: 5,
   },
+  out_for_delivery: {
+    label: 'Out for Doorstep Delivery',
+    color: '#FB923C',
+    bg: 'rgba(251, 146, 60, 0.15)',
+    step: 6,
+  },
   delivered: {
-    label: 'Delivered & Completed',
+    label: 'Safely Delivered',
     color: '#4ADE80',
     bg: 'rgba(74, 222, 128, 0.15)',
-    step: 6,
+    step: 7,
   },
   cancelled: {
     label: 'Order Cancelled',
@@ -92,9 +92,6 @@ export const ORDER_STATUS_MAP: Record<string, StatusConfig> = {
   },
 };
 
-/**
- * Resolves the display configuration for a given order status.
- */
 export function getStatusConfig(status: string): StatusConfig {
   const normalized = (status || '').toLowerCase().trim();
   return (
@@ -108,36 +105,51 @@ export function getStatusConfig(status: string): StatusConfig {
 }
 
 /**
- * Builds the 5 linear progress milestones matching legacy stepper.
+ * Builds customer milestones matching the authoritative backend states.
+ * Formats timestamps cleanly when available without inventing fake data.
  */
 export function buildMilestones(order: TrackingOrderSafe): TrackingMilestone[] {
   const statusCfg = getStatusConfig(order.status);
   const activeStep = statusCfg.step;
+  const carrierName = order.carrier || order.courier_name || 'Express Air Courier';
 
   const rawMilestones = [
     {
-      title: 'Order Confirmed & ₹49 Deposit Verified',
-      desc: `Reservation deposit of ₹${order.deposit_amount} received via Razorpay. Order locked for production.`,
+      title: 'Order Confirmed & Booking Deposit Verified',
+      desc: `₹${order.deposit_amount} reservation deposit received via Razorpay. Production queued.`,
+      timestamp: order.created_at ? formatTimestamp(order.created_at) : undefined,
     },
     {
-      title: 'Calligraphy Inscribed by Artisan',
-      desc: 'Authentic Persian/oriental lettering hand-composed on 300 GSM archival media.',
+      title: 'Artisan Studio Preparation',
+      desc: 'Authentic Persian/oriental calligraphy composed by hand on 300 GSM archival media.',
+      timestamp: undefined,
+    },
+    {
+      title: 'Personalization & Calligraphy Layout Review',
+      desc: 'Master artisan inspection of letterforms, vowel marks, and design aesthetic harmony.',
+      timestamp: undefined,
     },
     {
       title: 'A4 Frame Assembled & Quality Sealed',
-      desc: 'Mounted in matte black moulding with crystal-clear acrylic glass and double-bubble protection.',
+      desc: 'Mounted in matte black moulding with crystal acrylic glass and protective foam wrap.',
+      timestamp: undefined,
     },
     {
-      title: order.courier_name
-        ? `Dispatched via ${order.courier_name} Air Express`
-        : 'Dispatched via Express Courier',
+      title: `Dispatched via ${carrierName}`,
       desc: order.tracking_number
-        ? `AWB: ${order.tracking_number} · Fast transit to delivery hub`
-        : 'Handed over to priority logistics network with live transit tracking.',
+        ? `AWB: ${order.tracking_number} · Fast transit to delivery hub.`
+        : `Handed over to priority logistics network with live transit tracking.`,
+      timestamp: order.dispatched_at ? formatTimestamp(order.dispatched_at) : undefined,
     },
     {
-      title: 'Out for Delivery & COD Settlement',
-      desc: `Courier executive out for delivery. Pay remaining COD balance of ₹${order.cod_amount} via cash or UPI.`,
+      title: 'Out for Doorstep Delivery',
+      desc: `Courier executive out for delivery. Pay remaining COD balance of ₹${order.cod_amount} via Cash or UPI.`,
+      timestamp: undefined,
+    },
+    {
+      title: 'Safely Delivered',
+      desc: 'Parcel handed over to customer. Bespoke frame delivery complete.',
+      timestamp: order.delivered_at ? formatTimestamp(order.delivered_at) : undefined,
     },
   ];
 
@@ -145,7 +157,9 @@ export function buildMilestones(order: TrackingOrderSafe): TrackingMilestone[] {
     const stepNumber = idx + 1;
     let state: 'completed' | 'active' | 'upcoming' = 'upcoming';
 
-    if (stepNumber < activeStep) {
+    if (activeStep < 0) {
+      state = 'upcoming';
+    } else if (stepNumber < activeStep) {
       state = 'completed';
     } else if (stepNumber === activeStep) {
       state = 'active';
@@ -158,21 +172,32 @@ export function buildMilestones(order: TrackingOrderSafe): TrackingMilestone[] {
       desc: m.desc,
       stepNumber,
       state,
+      timestamp: m.timestamp,
     };
   });
 }
 
-/**
- * Builds WhatsApp Concierge inquiry URL for an existing order.
- */
+function formatTimestamp(isoStr: string): string {
+  try {
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return '';
+  }
+}
+
 export function buildOrderInquiryWhatsAppUrl(orderNumber: string, phone: string = '919305654028'): string {
   const text = `Hi NAMORA, I have an inquiry regarding my Order #${orderNumber}`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
 }
 
-/**
- * Builds WhatsApp Concierge inquiry URL when an order lookup fails.
- */
 export function buildNotFoundWhatsAppUrl(query: string, phone: string = '919305654028'): string {
   const text = `Hi NAMORA, I need help tracking my order for ${query}`;
   return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;

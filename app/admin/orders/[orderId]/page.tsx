@@ -34,10 +34,13 @@ export default function AdminOrderDetailPage() {
   const [courierName, setCourierName] = useState('');
   const [trackingNumber, setTrackingNumber] = useState('');
   const [trackingUrl, setTrackingUrl] = useState('');
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
   const [savingShipping, setSavingShipping] = useState(false);
 
-  // Notes state
+  // Notes & Notifications state
   const [notes, setNotes] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [retryingNotifId, setRetryingNotifId] = useState<string | null>(null);
   const [newNoteText, setNewNoteText] = useState('');
   const [addingNote, setAddingNote] = useState(false);
 
@@ -52,10 +55,16 @@ export default function AdminOrderDetailPage() {
       if (data.success && data.order) {
         setOrder(data.order);
         setChecklist(data.order.production_checklist || {});
-        setCourierName(data.order.courier_name || '');
+        setCourierName(data.order.carrier || data.order.courier_name || '');
         setTrackingNumber(data.order.tracking_number || '');
         setTrackingUrl(data.order.tracking_url || '');
+        setEstimatedDeliveryDate(
+          data.order.estimated_delivery_date
+            ? data.order.estimated_delivery_date.split('T')[0]
+            : ''
+        );
         setNotes(data.order.notes || []);
+        setNotifications(data.order.notifications || []);
       } else {
         setError(data.error || 'Order not found');
       }
@@ -151,8 +160,10 @@ export default function AdminOrderDetailPage() {
         body: JSON.stringify({
           order_id: order.id,
           courier_name: courierName,
+          carrier: courierName,
           tracking_number: trackingNumber,
           tracking_url: finalTrackingUrl,
+          estimated_delivery_date: estimatedDeliveryDate || null,
           mark_shipped: markShipped,
         }),
       });
@@ -168,6 +179,28 @@ export default function AdminOrderDetailPage() {
       alert(err?.message || 'Network error saving shipping');
     } finally {
       setSavingShipping(false);
+    }
+  };
+
+  // Handle Retry Failed Notification
+  const handleRetryNotification = async (logId: string) => {
+    setRetryingNotifId(logId);
+    try {
+      const res = await fetch('/api/admin/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ log_id: logId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchOrder();
+      } else {
+        alert(data.error || 'Notification retry failed');
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Network error retrying notification');
+    } finally {
+      setRetryingNotifId(null);
     }
   };
 
@@ -707,6 +740,18 @@ export default function AdminOrderDetailPage() {
                     />
                   </div>
 
+                  <div>
+                    <label className="text-[#A39684] block text-[10px] uppercase mb-1">
+                      Estimated Delivery Date
+                    </label>
+                    <input
+                      type="date"
+                      value={estimatedDeliveryDate}
+                      onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+                      className="w-full bg-[#1E1B18] border border-[#2D2722] focus:border-[#D4AF6A] text-[#F5EFE6] p-2.5 rounded-lg text-xs outline-none"
+                    />
+                  </div>
+
                   <div className="flex flex-col gap-2 pt-2">
                     <button
                       type="button"
@@ -726,6 +771,74 @@ export default function AdminOrderDetailPage() {
                       Save &amp; Mark as Dispatched 🚚
                     </button>
                   </div>
+                </div>
+              </div>
+
+              {/* Customer Notification History */}
+              <div className="bg-[#141210] rounded-xl border border-[#2D2722] p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-serif text-base font-bold text-[#F5EFE6]">
+                    Customer Notification History
+                  </h2>
+                  <span className="text-[10px] font-mono text-[#A39684]">
+                    {notifications.length} logged
+                  </span>
+                </div>
+
+                <div className="space-y-3 font-mono text-xs">
+                  {notifications.length === 0 ? (
+                    <div className="text-[#736B63] italic py-2">No notification records dispatched yet.</div>
+                  ) : (
+                    notifications.map((notif: any) => (
+                      <div
+                        key={notif.id}
+                        className="bg-[#1A1816] p-3 rounded-lg border border-[#2D2722] flex flex-col gap-1.5"
+                      >
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="font-bold text-[#D4AF6A] uppercase">
+                            {notif.notification_type?.replace(/_/g, ' ')}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                              notif.status === 'sent'
+                                ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-500/40'
+                                : notif.status === 'failed'
+                                ? 'bg-red-950/40 text-red-400 border border-red-500/40'
+                                : 'bg-amber-950/40 text-amber-400 border border-amber-500/40'
+                            }`}
+                          >
+                            {notif.status}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-[#A39684]">
+                          <span>
+                            Channel: <strong className="text-[#F5EFE6] uppercase">{notif.channel}</strong> ({notif.masked_recipient || notif.recipient_reference || '***'})
+                          </span>
+                          <span>{notif.created_at ? new Date(notif.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                        </div>
+
+                        {notif.error_message && (
+                          <div className="text-[10px] text-red-400 bg-red-950/20 p-1.5 rounded border border-red-900/30">
+                            Error: {notif.error_message}
+                          </div>
+                        )}
+
+                        {notif.status === 'failed' && (
+                          <div className="flex justify-end pt-1">
+                            <button
+                              type="button"
+                              disabled={retryingNotifId === notif.id}
+                              onClick={() => handleRetryNotification(notif.id)}
+                              className="px-2.5 py-1 rounded bg-red-900/40 hover:bg-red-800/60 text-red-200 text-[10px] font-bold transition disabled:opacity-50"
+                            >
+                              {retryingNotifId === notif.id ? 'Retrying...' : '↻ Retry Delivery'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 

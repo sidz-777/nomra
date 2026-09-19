@@ -45,6 +45,8 @@ export interface VerifyPaymentResponse {
   deposit_paid?: number;
   cod_balance?: number;
   payment_id?: string;
+  tracking_token?: string;
+  tracking_url?: string;
 }
 
 export interface RazorpayWebhookPayload {

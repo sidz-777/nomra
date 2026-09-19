@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { trackCustomerOrder } from '@/lib/tracking/tracking-service';
 import { TrackingResponse } from '@/lib/tracking/types';
@@ -10,36 +10,54 @@ import { Container } from '@/components/layout/Container';
 
 export function TrackOrderView() {
   const searchParams = useSearchParams();
-  const initialParam = searchParams.get('query') || searchParams.get('orderNumber') || searchParams.get('order_number') || '';
+  const tokenParam = searchParams.get('token') || '';
+  const orderNumberParam = searchParams.get('orderNumber') || searchParams.get('query') || '';
+  const verificationParam = searchParams.get('verification') || searchParams.get('pin') || searchParams.get('last4') || '';
 
-  const [query, setQuery] = useState(initialParam);
+  const [token, setToken] = useState(tokenParam);
+  const [orderNumber, setOrderNumber] = useState(orderNumberParam);
+  const [verification, setVerification] = useState(verificationParam);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<TrackingResponse | null>(null);
-  const [searchedQuery, setSearchedQuery] = useState('');
+  const [searchedLabel, setSearchedLabel] = useState('');
 
-  const executeTrack = async (searchVal: string) => {
-    const clean = searchVal.trim();
-    if (!clean) return;
+  const executeTrack = useCallback(async (params: { token?: string; orderNumber?: string; verification?: string }) => {
+    const cleanToken = (params.token || '').trim();
+    const cleanOrder = (params.orderNumber || '').trim();
+    const cleanVerif = (params.verification || '').trim();
+
+    if (!cleanToken && (!cleanOrder || !cleanVerif)) {
+      return;
+    }
 
     setIsLoading(true);
-    setSearchedQuery(clean);
+    setSearchedLabel(cleanToken ? 'Secure Token Access' : `${cleanOrder.toUpperCase()}`);
     setResult(null);
 
-    const data = await trackCustomerOrder(clean);
+    const data = await trackCustomerOrder({
+      token: cleanToken || undefined,
+      orderNumber: cleanOrder || undefined,
+      verification: cleanVerif || undefined,
+    });
+
     setResult(data);
     setIsLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
-    if (initialParam) {
-      setQuery(initialParam);
-      executeTrack(initialParam);
+    if (tokenParam) {
+      setToken(tokenParam);
+      executeTrack({ token: tokenParam });
+    } else if (orderNumberParam && verificationParam) {
+      setOrderNumber(orderNumberParam);
+      setVerification(verificationParam);
+      executeTrack({ orderNumber: orderNumberParam, verification: verificationParam });
     }
-  }, [initialParam]);
+  }, [tokenParam, orderNumberParam, verificationParam, executeTrack]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    executeTrack(query);
+    executeTrack({ token, orderNumber, verification });
   };
 
   return (
@@ -47,92 +65,99 @@ export function TrackOrderView() {
       {/* Head section */}
       <div className="text-center space-y-2">
         <span className="text-xs uppercase font-mono tracking-widest text-namora-gold font-semibold">
-          Live Dispatch Status
+          Live Dispatch &amp; Production Status
         </span>
         <h1 className="font-luxury text-3xl sm:text-4xl font-bold text-namora-ink tracking-tight">
           Track Your Frame Order
         </h1>
         <p className="text-xs sm:text-sm text-namora-muted max-w-md mx-auto leading-relaxed">
-          Enter your 10-digit mobile number or Order ID (e.g. NAM-8421) to view real-time artisan handcrafting, quality checks, and courier dispatch milestones.
+          Access your real-time handcrafting milestones, quality inspection, and courier dispatch. For privacy and gift confidentiality, dual verification is required.
         </p>
       </div>
 
+      {/* Direct Token Banner if active */}
+      {token && (
+        <div className="p-3.5 rounded-xl border border-namora-gold/30 bg-namora-gold/5 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-namora-gold">
+            <span>🛡️</span>
+            <span>Authenticated via Secure Order Token</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setToken('');
+              setResult(null);
+            }}
+            className="text-[11px] underline text-namora-muted hover:text-namora-ink"
+          >
+            Manual Search
+          </button>
+        </div>
+      )}
+
       {/* Search Input Box */}
-      <div className="p-6 rounded-2xl border border-namora-line bg-namora-card shadow-luxury">
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <label htmlFor="trackQueryInput" className="block text-xs font-mono text-namora-muted uppercase tracking-wider">
-            Order Reference or Mobile
-          </label>
-          <div className="flex flex-col sm:flex-row gap-2.5">
-            <input
-              id="trackQueryInput"
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g. 9876543210 or NAM-8421"
-              maxLength={25}
-              className="flex-1 px-4 py-3 rounded-xl border border-namora-line bg-namora-bg text-namora-ink text-sm focus:outline-none focus:border-namora-gold transition"
-            />
+      {!token && (
+        <div className="p-6 rounded-2xl border border-namora-line bg-namora-card shadow-luxury">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label htmlFor="orderNumberInput" className="block text-[11px] font-mono text-namora-muted uppercase tracking-wider">
+                  Order Reference
+                </label>
+                <input
+                  id="orderNumberInput"
+                  type="text"
+                  value={orderNumber}
+                  onChange={(e) => setOrderNumber(e.target.value)}
+                  placeholder="e.g. NAM-8429"
+                  maxLength={20}
+                  className="w-full px-4 py-2.5 rounded-xl border border-namora-line bg-namora-bg text-namora-ink text-sm focus:outline-none focus:border-namora-gold transition font-mono uppercase"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="verificationInput" className="block text-[11px] font-mono text-namora-muted uppercase tracking-wider">
+                  Phone Last 4 Digits or PIN
+                </label>
+                <input
+                  id="verificationInput"
+                  type="text"
+                  value={verification}
+                  onChange={(e) => setVerification(e.target.value)}
+                  placeholder="e.g. 4028 or 400001"
+                  maxLength={6}
+                  className="w-full px-4 py-2.5 rounded-xl border border-namora-line bg-namora-bg text-namora-ink text-sm focus:outline-none focus:border-namora-gold transition font-mono"
+                />
+              </div>
+            </div>
+
+            <p className="text-[11px] text-namora-muted leading-relaxed">
+              🔒 <strong>Gift Privacy Guarantee:</strong> Phone-only and order-number-only lookups are restricted to prevent unauthorized viewing of personalized custom gift inscriptions.
+            </p>
+
             <button
               type="submit"
-              disabled={isLoading || !query.trim()}
-              className="px-6 py-3 rounded-xl bg-namora-gold hover:bg-namora-gold-hover text-black font-bold text-sm transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-1.5"
+              disabled={isLoading || !orderNumber.trim() || !verification.trim()}
+              className="w-full sm:w-auto px-6 py-3 rounded-xl bg-namora-gold hover:bg-namora-gold-hover text-black font-bold text-sm transition disabled:opacity-50 shadow-sm flex items-center justify-center gap-1.5"
             >
               {isLoading ? (
                 <>
                   <span className="animate-spin text-sm">↻</span>
-                  <span>Searching...</span>
+                  <span>Verifying Ledger...</span>
                 </>
               ) : (
                 <span>Track Live Order &rarr;</span>
               )}
             </button>
-          </div>
-
-          {/* Quick Demo Chips */}
-          <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-namora-muted">
-            <span>Quick Demo:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('NAM-8421');
-                executeTrack('NAM-8421');
-              }}
-              className="underline text-namora-gold hover:text-namora-gold-hover"
-            >
-              NAM-8421 (Production Review)
-            </button>
-            <span>&bull;</span>
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('NAM-8422');
-                executeTrack('NAM-8422');
-              }}
-              className="underline text-namora-gold hover:text-namora-gold-hover"
-            >
-              NAM-8422 (Shipped / Delhivery)
-            </button>
-            <span>&bull;</span>
-            <button
-              type="button"
-              onClick={() => {
-                setQuery('9876543210');
-                executeTrack('9876543210');
-              }}
-              className="underline text-namora-gold hover:text-namora-gold-hover"
-            >
-              9876543210 (Mobile Lookup)
-            </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
+      )}
 
       {/* Loading Indicator */}
       {isLoading && (
         <div className="p-8 rounded-2xl border border-namora-line bg-namora-card text-center space-y-2 animate-fadeIn">
           <div className="text-3xl animate-bounce">🔍</div>
-          <div className="text-sm font-semibold text-namora-ink">Searching live NAMORA dispatch records...</div>
+          <div className="text-sm font-semibold text-namora-ink">Verifying NAMORA artisan dispatch records...</div>
           <p className="text-xs text-namora-muted">Connecting securely to workshop ledger &amp; logistics carriers.</p>
         </div>
       )}
@@ -145,19 +170,19 @@ export function TrackOrderView() {
           ) : (
             <div className="p-8 rounded-2xl border border-red-500/25 bg-red-950/20 text-center space-y-4 animate-fadeIn">
               <div className="text-3xl">🔍</div>
-              <div className="font-bold text-base text-red-400">Order Not Found</div>
+              <div className="font-bold text-base text-red-400">Verification Incomplete</div>
               <p className="text-xs sm:text-sm text-namora-muted max-w-sm mx-auto leading-relaxed">
-                We couldn&apos;t locate an active order matching &ldquo;<strong className="text-namora-ink">{searchedQuery}</strong>&rdquo;. Please double check your order number (e.g. NAM-8421) or 10-digit mobile number.
+                {result.message || 'We could not verify an active order matching the provided credentials. Please confirm your Order Reference and verification digits.'}
               </p>
               <div>
                 <a
-                  href={buildNotFoundWhatsAppUrl(searchedQuery)}
+                  href={buildNotFoundWhatsAppUrl(searchedLabel)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm transition shadow-sm"
                 >
                   <span>💬</span>
-                  <span>Inquire via WhatsApp Concierge</span>
+                  <span>Inquire with NAMORA Concierge on WhatsApp</span>
                 </a>
               </div>
             </div>

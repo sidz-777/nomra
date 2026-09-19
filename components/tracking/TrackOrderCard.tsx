@@ -14,6 +14,7 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
   const milestones = buildMilestones(order);
   const isNegativeStatus = statusCfg.step < 0;
   const whatsappUrl = buildOrderInquiryWhatsAppUrl(order.order_number);
+  const carrierDisplayName = order.carrier || order.courier_name;
 
   return (
     <div className="space-y-4 animate-fadeIn">
@@ -24,7 +25,7 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
             Order #{order.order_number}
           </div>
           <div className="text-xs text-namora-muted mt-0.5">
-            Customer: <strong className="text-namora-ink font-semibold">{order.customer_name}</strong>
+            Recipient: <strong className="text-namora-ink font-semibold">{order.customer_name}</strong>
           </div>
         </div>
         <span
@@ -41,18 +42,27 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
       </div>
 
       {/* 2. Express Courier Dispatch Card (if assigned) */}
-      {(order.courier_name || order.tracking_number) && (
+      {(carrierDisplayName || order.tracking_number) && (
         <div className="p-4 rounded-xl border border-namora-gold/30 bg-namora-gold/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <div className="text-[10px] uppercase font-mono tracking-widest text-namora-gold font-semibold">
               Express Courier Dispatch
             </div>
             <div className="font-bold text-sm sm:text-base text-namora-ink mt-0.5">
-              {order.courier_name || 'Standard Courier'}
+              {carrierDisplayName || 'Standard Courier'}
             </div>
             <div className="text-xs font-mono text-namora-muted mt-0.5">
-              AWB: {order.tracking_number || 'Pending Assignment'}
+              AWB / Consignment: {order.tracking_number || 'Pending Assignment'}
             </div>
+            {order.estimated_delivery_date && (
+              <div className="text-xs text-namora-gold mt-1 font-medium">
+                Estimated Delivery: {new Date(order.estimated_delivery_date).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </div>
+            )}
           </div>
           {order.tracking_url && (
             <a
@@ -61,13 +71,30 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-namora-gold text-black font-bold text-xs hover:bg-namora-gold-hover transition shadow-sm"
             >
-              Track on {order.courier_name || 'Carrier'} &nearr;
+              Track on {carrierDisplayName || 'Carrier'} &nearr;
             </a>
           )}
         </div>
       )}
 
-      {/* 3. Payment Balance Breakdown Card */}
+      {/* 3. Privacy-Safe Delivery Destination */}
+      {order.destination_summary && (
+        <div className="p-4 rounded-xl border border-namora-line bg-namora-card flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+          <div>
+            <span className="text-[10px] uppercase font-mono text-namora-muted block">
+              Delivery Destination
+            </span>
+            <span className="font-semibold text-namora-ink">
+              {order.destination_summary.city}, {order.destination_summary.state} — {order.destination_summary.pincode}
+            </span>
+          </div>
+          <div className="text-namora-muted text-[11px] font-mono">
+            Verified Recipient: {order.destination_summary.masked_name}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Payment Balance Breakdown Card */}
       <div className="p-4 rounded-xl border border-namora-line bg-namora-card space-y-2">
         <div className="flex justify-between items-center text-xs sm:text-sm">
           <span className="text-namora-muted">Total Order Value:</span>
@@ -83,7 +110,7 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
         </div>
       </div>
 
-      {/* 4. Handcrafted Frame Items Card */}
+      {/* 5. Handcrafted Frame Items Card */}
       {items.length > 0 && (
         <div className="p-4 rounded-xl border border-namora-line bg-namora-card space-y-3">
           <div className="text-[10px] uppercase font-mono tracking-widest text-namora-muted font-semibold">
@@ -103,6 +130,9 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
                       </span>
                     )}
                     {item.arabic_name && <span>({item.arabic_name})</span>}
+                    {item.ink_style && (
+                      <span className="text-namora-muted">· Finish: {item.ink_style}</span>
+                    )}
                     {item.has_gift && (
                       <span className="text-emerald-400 flex items-center gap-0.5">
                         🎁 Gift Box Included
@@ -119,7 +149,7 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
         </div>
       )}
 
-      {/* 5. Stepper or Negative Status Banner */}
+      {/* 6. Stepper or Negative Status Banner */}
       {isNegativeStatus ? (
         <div className="p-4 rounded-xl border border-red-500/30 bg-red-950/20 text-center text-xs text-red-300 space-y-1">
           <div className="text-base">⚠️</div>
@@ -156,17 +186,24 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
                   </div>
 
                   {/* Step Details */}
-                  <div className="pt-0.5">
-                    <div
-                      className={`text-xs sm:text-sm font-semibold leading-tight ${
-                        isActive
-                          ? 'text-lime-400'
-                          : isCompleted
-                          ? 'text-namora-ink'
-                          : 'text-namora-muted'
-                      }`}
-                    >
-                      {m.title}
+                  <div className="pt-0.5 flex-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <div
+                        className={`text-xs sm:text-sm font-semibold leading-tight ${
+                          isActive
+                            ? 'text-lime-400'
+                            : isCompleted
+                            ? 'text-namora-ink'
+                            : 'text-namora-muted'
+                        }`}
+                      >
+                        {m.title}
+                      </div>
+                      {m.timestamp && (
+                        <span className="text-[10px] font-mono text-namora-muted whitespace-nowrap">
+                          {m.timestamp}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11px] text-namora-muted mt-0.5 leading-relaxed">
                       {m.desc}
@@ -179,7 +216,7 @@ export function TrackOrderCard({ order, items = [] }: TrackOrderCardProps) {
         </div>
       )}
 
-      {/* 6. WhatsApp Concierge Inquiry Button */}
+      {/* 7. WhatsApp Concierge Inquiry Button */}
       <a
         href={whatsappUrl}
         target="_blank"

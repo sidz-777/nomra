@@ -7,6 +7,8 @@ import {
 } from '@/lib/checkout/checkout-validation';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { PERSIAN_DESIGNS } from '@/lib/storefront-data';
+import crypto from 'crypto';
+import { triggerOrderConfirmed } from '@/lib/notifications/triggers';
 
 export const dynamic = 'force-dynamic';
 
@@ -235,6 +237,8 @@ export async function POST(req: Request) {
     let orderId: string | null = null;
     let orderNumber: string | null = null;
 
+    const trackingToken = crypto.randomBytes(16).toString('hex');
+
     // 4. Primary: Invoke PostgreSQL RPC create_secure_order
     try {
       const supabase = createAdminClient();
@@ -247,6 +251,23 @@ export async function POST(req: Request) {
       if (!rpcErr && rpcData && rpcData.success) {
         orderId = rpcData.order_id;
         orderNumber = rpcData.order_number;
+
+        // Persist tracking_token to orders or settings fallback
+        const { error: tokenUpdateErr } = await supabase
+          .from('orders')
+          .update({ tracking_token: trackingToken })
+          .eq('id', orderId);
+
+        if (tokenUpdateErr) {
+          await supabase.from('settings').upsert(
+            {
+              key: `tracking_token:${trackingToken}`,
+              value: JSON.stringify({ order_id: orderId, order_number: orderNumber }),
+              description: `Tracking token for order ${orderNumber}`,
+            },
+            { onConflict: 'key' }
+          );
+        }
       } else if (rpcErr) {
         console.warn('create_secure_order RPC note:', rpcErr.message);
       }
@@ -318,25 +339,51 @@ export async function POST(req: Request) {
         const rnd = Math.floor(1000 + Math.random() * 9000);
         const candidateNumber = `NAM-${rnd}`;
 
-        const { data: newOrder, error: insertErr } = await supabase
+        let insertPayload: Record<string, any> = {
+          order_number: candidateNumber,
+          customer_name: customer.name.trim(),
+          phone: phoneDigits,
+          address: fullAddress,
+          city: address.city.trim(),
+          state: address.state.trim(),
+          pincode: pincodeDigits,
+          total_amount: grandTotal,
+          deposit_amount: totalDeposit,
+          cod_amount: codAmount,
+          status: 'pending_advance',
+          payment_method: 'deposit_cod',
+          payment_status: 'unpaid',
+          tracking_token: trackingToken,
+        };
+
+        let { data: newOrder, error: insertErr } = await supabase
           .from('orders')
-          .insert({
-            order_number: candidateNumber,
-            customer_name: customer.name.trim(),
-            phone: phoneDigits,
-            address: fullAddress,
-            city: address.city.trim(),
-            state: address.state.trim(),
-            pincode: pincodeDigits,
-            total_amount: grandTotal,
-            deposit_amount: totalDeposit,
-            cod_amount: codAmount,
-            status: 'pending_advance',
-            payment_method: 'deposit_cod',
-            payment_status: 'unpaid',
-          })
+          .insert(insertPayload)
           .select('id, order_number')
           .single();
+
+        // Graceful fallback if tracking_token column not yet present in remote Supabase
+        if (insertErr && (insertErr.message?.includes('tracking_token') || insertErr.code === '42703')) {
+          delete insertPayload.tracking_token;
+          const retry = await supabase
+            .from('orders')
+            .insert(insertPayload)
+            .select('id, order_number')
+            .single();
+          newOrder = retry.data;
+          insertErr = retry.error;
+
+          if (!insertErr && newOrder) {
+            await supabase.from('settings').upsert(
+              {
+                key: `tracking_token:${trackingToken}`,
+                value: JSON.stringify({ order_id: newOrder.id, order_number: newOrder.order_number }),
+                description: `Tracking token for order ${newOrder.order_number}`,
+              },
+              { onConflict: 'key' }
+            );
+          }
+        }
 
         if (!insertErr && newOrder) {
           orderId = newOrder.id;
@@ -393,6 +440,8 @@ export async function POST(req: Request) {
       codAmount: codAmount,
       frameCount: totalFrames,
       status: 'pending_advance',
+      trackingToken: trackingToken,
+      trackingUrl: `/track?token=${trackingToken}`,
       paymentHandoff: {
         provider: 'razorpay',
         currency: 'INR',

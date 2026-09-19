@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { VALID_ORDER_TRANSITIONS } from '@/lib/admin/types';
+import { NotificationService } from '@/lib/notifications/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,7 +129,28 @@ export async function GET(
       }
     }
 
-    // 7. Calculate valid next transitions
+    // 7. Query notification history
+    let notifications: any[] = [];
+    try {
+      const { data: notifData, error: nErr } = await supabase
+        .from('notification_logs')
+        .select('*')
+        .eq('order_id', order.id)
+        .order('created_at', { ascending: false });
+      if (!nErr && Array.isArray(notifData)) {
+        notifications = notifData;
+      }
+    } catch {
+      // Table fallback handled below
+    }
+
+    if (notifications.length === 0) {
+      notifications = NotificationService.getFallbackLogs().filter(
+        (l) => l.order_id === order.id || l.order_number === order.order_number
+      );
+    }
+
+    // 8. Calculate valid next transitions
     const currentStatus = order.status || 'pending_payment';
     const allowedTransitions = VALID_ORDER_TRANSITIONS[currentStatus] || [];
 
@@ -140,6 +162,7 @@ export async function GET(
         payments,
         customer,
         notes,
+        notifications,
         allowed_transitions: allowedTransitions,
       },
     });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { verifyPaymentSignature, fetchRazorpayPayment } from '@/lib/payments/razorpay';
 import { VerifyPaymentResponse } from '@/lib/payments/types';
+import { triggerOrderConfirmed } from '@/lib/notifications/triggers';
 
 export const dynamic = 'force-dynamic';
 
@@ -209,6 +210,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Trigger durable notification (non-blocking, completely isolated from payment response)
+    triggerOrderConfirmed({
+      ...resolvedOrder,
+      deposit_amount: depositPaid,
+      cod_amount: codBalance,
+      tracking_token: resolvedOrder.tracking_token,
+      tracking_url: resolvedOrder.tracking_token ? `/track?token=${resolvedOrder.tracking_token}` : `/track?orderNumber=${orderNum}`,
+    }).catch((notifErr) => {
+      console.warn('[Payment Verify] Non-blocking notification note:', notifErr?.message);
+    });
+
     const verifyResponse: VerifyPaymentResponse = {
       success: true,
       order_number: orderNum,
@@ -216,6 +228,8 @@ export async function POST(request: NextRequest) {
       deposit_paid: depositPaid,
       cod_balance: codBalance,
       payment_id: razorpay_payment_id,
+      tracking_token: resolvedOrder.tracking_token || undefined,
+      tracking_url: resolvedOrder.tracking_token ? `/track?token=${resolvedOrder.tracking_token}` : undefined,
     };
 
     return NextResponse.json(verifyResponse);

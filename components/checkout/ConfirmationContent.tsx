@@ -12,6 +12,7 @@ export function ConfirmationContent() {
   const searchParams = useSearchParams();
   const orderNumberParam = searchParams.get('orderNumber') || 'NAM-DEMO';
   const orderIdParam = searchParams.get('orderId') || '';
+  const tokenParam = searchParams.get('token') || '';
 
   const [storedOrder, setStoredOrder] = useState<any>(null);
   const [paymentStatus, setPaymentStatus] = useState<'unpaid' | 'paid'>('unpaid');
@@ -43,11 +44,13 @@ export function ConfirmationContent() {
 
   const orderNumber = storedOrder?.orderNumber || orderNumberParam;
   const orderId = storedOrder?.orderId || orderIdParam;
+  const trackingToken = storedOrder?.tracking_token || tokenParam || '';
   const grandTotal = storedOrder ? formatINR(storedOrder.totals?.grandTotal || 499) : '₹499';
   const rawDepositAmount = storedOrder?.totals?.totalDeposit || 49;
   const depositAmount = formatINR(rawDepositAmount);
   const codAmount = storedOrder ? formatINR(storedOrder.totals?.totalCod || 450) : '₹450';
   const frameCount = storedOrder?.totals?.totalFrames || 1;
+  const items = storedOrder?.items || [];
 
   const handlePaymentSuccess = (verification: VerifyPaymentResponse) => {
     setPaymentStatus('paid');
@@ -61,6 +64,7 @@ export function ConfirmationContent() {
           status: 'advance_paid',
           payment_status: 'deposit_received',
           razorpay_payment_id: verification.payment_id,
+          tracking_token: (verification as any).tracking_token || storedOrder.tracking_token,
         };
         window.sessionStorage.setItem('namora_last_order', JSON.stringify(updated));
         setStoredOrder(updated);
@@ -70,11 +74,15 @@ export function ConfirmationContent() {
     }
   };
 
+  const trackingHref = trackingToken
+    ? `/track?token=${encodeURIComponent(trackingToken)}`
+    : `/track?orderNumber=${encodeURIComponent(orderNumber)}`;
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fadeIn">
       {/* Head Banner */}
       <div className="text-center space-y-3">
-        <div 
+        <div
           className={`w-16 h-16 rounded-full flex items-center justify-center text-2xl mx-auto shadow-luxury transition-all duration-500 ${
             paymentStatus === 'paid'
               ? 'bg-emerald-950/80 border-2 border-emerald-500 text-emerald-300'
@@ -85,16 +93,16 @@ export function ConfirmationContent() {
         </div>
         <div className="space-y-1">
           <span className="text-xs font-mono uppercase tracking-widest text-namora-gold">
-            {paymentStatus === 'paid' ? 'Deposit Verified & Confirmed' : 'Order Registered in System'}
+            {paymentStatus === 'paid' ? 'Deposit Verified & Production Queued' : 'Order Registered in System'}
           </span>
           <h1 className="font-hero text-2xl sm:text-3xl font-bold text-namora-ink">
             {paymentStatus === 'paid'
-              ? 'Deposit Received — Production Queued!'
+              ? 'Deposit Confirmed — Handcrafting Initiated!'
               : 'Your Bespoke Frame is Reserved!'}
           </h1>
           <p className="text-xs sm:text-sm text-namora-muted max-w-md mx-auto leading-relaxed">
             {paymentStatus === 'paid'
-              ? 'Thank you! Your advance booking deposit has been cryptographically verified by Razorpay. Our master calligraphy artisans are now preparing your physical frame.'
+              ? 'Thank you! Your advance booking deposit has been cryptographically verified by Razorpay. Master calligraphy artisans are now preparing your physical frame.'
               : 'Thank you for placing your order with NAMORA. Please complete the advance booking deposit below to initiate custom calligraphy crafting.'}
           </p>
         </div>
@@ -155,7 +163,7 @@ export function ConfirmationContent() {
           </div>
         </div>
 
-        {/* Payment Section */}
+        {/* Payment Confirmation Badge */}
         {paymentStatus === 'paid' ? (
           <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 space-y-2.5 animate-fadeIn">
             <div className="flex items-center justify-between text-xs">
@@ -170,11 +178,11 @@ export function ConfirmationContent() {
             </div>
             <p className="text-xs text-zinc-300 leading-relaxed">
               Your online booking deposit of <strong className="text-emerald-300">{depositAmount}</strong> has been secured. 
-              The balance of <strong className="text-white">{codAmount}</strong> will be collected in cash or UPI by the delivery courier when your physical handmade frame arrives at your doorstep.
+              The remaining balance of <strong className="text-white">{codAmount}</strong> will be collected in cash or UPI by the delivery courier when your physical handmade frame arrives at your doorstep.
             </p>
             <div className="pt-1 text-[11px] text-zinc-400 font-mono flex items-center gap-2">
-              <span>Next Step:</span>
-              <span className="text-namora-gold">Artisan Engraving & Framing (1–2 Days)</span>
+              <span>Next Milestone:</span>
+              <span className="text-namora-gold">Artisan Calligraphy Composition (24–48 Hours)</span>
             </div>
           </div>
         ) : (
@@ -197,30 +205,72 @@ export function ConfirmationContent() {
           </div>
         )}
 
-        {/* Shipping & Delivery Details */}
+        {/* Itemized Personalized Specs Summary */}
+        {items.length > 0 && (
+          <div className="pt-3 border-t border-namora-line-soft space-y-2 text-xs">
+            <span className="text-[10px] uppercase font-mono text-namora-muted block">
+              Bespoke Frame Details ({items.length})
+            </span>
+            <div className="divide-y divide-namora-line-soft">
+              {items.map((it: any, idx: number) => (
+                <div key={idx} className="py-2 flex justify-between items-center text-xs">
+                  <div>
+                    <span className="font-semibold text-namora-ink">{it.title || it.productTitle || 'Handcrafted Frame'}</span>
+                    <div className="text-[11px] text-namora-gold">
+                      {it.customization?.englishName && <span>Name: {it.customization.englishName} </span>}
+                      {it.customization?.arabicName && <span>({it.customization.arabicName}) </span>}
+                      {it.customization?.finishLabel && <span className="text-namora-muted">· {it.customization.finishLabel}</span>}
+                    </div>
+                  </div>
+                  <span className="font-mono text-namora-ink">Qty: {it.quantity || 1}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Shipping & Delivery Details Summary */}
         {storedOrder?.address && (
           <div className="pt-3 border-t border-namora-line-soft space-y-1 text-xs">
             <span className="text-[10px] uppercase font-mono text-namora-muted block">
-              Delivery Destination
+              Delivery Destination Summary
             </span>
             <p className="font-medium text-namora-ink">
-              {storedOrder.customerName} ({storedOrder.customerPhone})
+              {storedOrder.customerName}
             </p>
             <p className="text-namora-muted leading-relaxed">
-              {storedOrder.address.addressLine1}
-              {storedOrder.address.addressLine2 ? `, ${storedOrder.address.addressLine2}` : ''}
-              {storedOrder.address.landmark ? `, Near ${storedOrder.address.landmark}` : ''},{' '}
               {storedOrder.address.city}, {storedOrder.address.state} — {storedOrder.address.pincode}
             </p>
           </div>
         )}
       </div>
 
+      {/* Expected Next Steps Stepper Preview */}
+      <div className="p-4 rounded-xl border border-namora-line bg-namora-card space-y-2 text-xs">
+        <span className="text-[10px] uppercase font-mono text-namora-muted block">
+          What Happens Next?
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
+          <div className="p-2.5 rounded-lg bg-namora-soft border border-namora-line-soft">
+            <span className="text-namora-gold block font-semibold">1. Artisan Calligraphy</span>
+            <span className="text-namora-muted text-[10px]">Hand-composed on archival media</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-namora-soft border border-namora-line-soft">
+            <span className="text-namora-gold block font-semibold">2. A4 Frame Assembly</span>
+            <span className="text-namora-muted text-[10px]">Mounted, acrylic sealed &amp; packaged</span>
+          </div>
+          <div className="p-2.5 rounded-lg bg-namora-soft border border-namora-line-soft">
+            <span className="text-namora-gold block font-semibold">3. Express Air Courier</span>
+            <span className="text-namora-muted text-[10px]">Doorstep delivery with COD collection</span>
+          </div>
+        </div>
+      </div>
+
       {/* Actions */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-        <Link href={`/track-order?query=${encodeURIComponent(orderNumber)}`} className="w-full sm:w-auto">
-          <Button variant="outline" size="sm" className="w-full sm:w-auto">
-            🔍 Track Live Production
+        <Link href={trackingHref} className="w-full sm:w-auto">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto border-namora-gold text-namora-gold hover:bg-namora-gold hover:text-black">
+            🔍 Track Live Production with Secure Token &rarr;
           </Button>
         </Link>
 

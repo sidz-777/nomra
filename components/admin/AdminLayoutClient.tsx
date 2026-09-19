@@ -37,6 +37,8 @@ export default function AdminLayoutClient({
   const isCampaignsActive = pathname === '/admin/campaigns';
   const isActivityActive = pathname === '/admin/activity';
   const isSettingsActive = pathname === '/admin/settings';
+  const isNotificationsActive = pathname === '/admin/notifications';
+  const isNotificationSettingsActive = pathname === '/admin/settings/notifications';
 
   const avatarInitial = (email || 'A').trim().charAt(0).toUpperCase();
 
@@ -82,6 +84,20 @@ export default function AdminLayoutClient({
       >
         <span className="text-base">👥</span>
         <span>Customer CRM</span>
+      </Link>
+
+      {/* Notification Center */}
+      <Link
+        href="/admin/notifications"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isNotificationsActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">🔔</span>
+        <span>Notification Center</span>
       </Link>
 
       {/* Inventory & Stock */}
@@ -264,6 +280,20 @@ export default function AdminLayoutClient({
       >
         <span className="text-base">⚙️</span>
         <span>Store Pricing &amp; UPI</span>
+      </Link>
+
+      {/* Notification Settings */}
+      <Link
+        href="/admin/settings/notifications"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isNotificationSettingsActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">🔔</span>
+        <span>Notification Config</span>
       </Link>
     </nav>
   );
