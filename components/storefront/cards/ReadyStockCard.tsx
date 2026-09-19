@@ -7,9 +7,10 @@ import { useCart } from '@/components/cart';
 interface ReadyStockCardProps {
   product: ReadyStockItem;
   priority?: boolean;
+  badgeOverride?: string;
 }
 
-export function ReadyStockCard({ product }: ReadyStockCardProps) {
+export function ReadyStockCard({ product, badgeOverride }: ReadyStockCardProps) {
   const { addReadyStockItem } = useCart();
 
   const itemPrice = Number(product.price) || 499;
@@ -34,7 +35,7 @@ export function ReadyStockCard({ product }: ReadyStockCardProps) {
     <div className="ready-card" data-category={product.category}>
       <div className="ready-frame-wrapper">
         <span className={`ready-card-badge ${product.tagClass || 'default'}`}>
-          {product.tag}
+          {badgeOverride || product.tag}
         </span>
         <button
           type="button"

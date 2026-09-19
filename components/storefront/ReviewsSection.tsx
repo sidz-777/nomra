@@ -1,8 +1,42 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { ReviewCard } from './cards/ReviewCard';
-import { TESTIMONIALS } from '@/lib/storefront-data';
+import { TESTIMONIALS, TestimonialItem } from '@/lib/storefront-data';
 
 export function ReviewsSection() {
+  const [reviews, setReviews] = useState<TestimonialItem[]>(TESTIMONIALS);
+  const [stats, setStats] = useState({
+    average_rating: 4.9,
+    total_reviews: 540,
+    five_star_pct: 94,
+    four_star_pct: 6,
+  });
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadDynamicReviews() {
+      try {
+        const res = await fetch('/api/reviews');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.reviews) && data.reviews.length > 0 && mounted) {
+            setReviews(data.reviews);
+            if (data.stats) {
+              setStats(data.stats);
+            }
+          }
+        }
+      } catch {
+        // Resilient fallback: preserves TESTIMONIALS exactly
+      }
+    }
+    loadDynamicReviews();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <section id="testimonials" className="section">
       <div className="container">
@@ -17,24 +51,24 @@ export function ReviewsSection() {
         {/* 4.9★ REVIEWS SUMMARY CARD */}
         <div className="reviews-summary-card reveal">
           <div className="reviews-score-block">
-            <div className="reviews-big-score">4.9</div>
+            <div className="reviews-big-score">{stats.average_rating}</div>
             <div className="reviews-stars">★★★★★</div>
-            <div className="reviews-count-label">540+ Verified Buyers</div>
+            <div className="reviews-count-label">{stats.total_reviews}+ Verified Buyers</div>
           </div>
           <div className="reviews-bars">
             <div className="review-bar-row">
               <span>5 ★</span>
               <div className="review-bar-track">
-                <div className="review-bar-fill" style={{ width: '94%' }}></div>
+                <div className="review-bar-fill" style={{ width: `${stats.five_star_pct}%` }}></div>
               </div>
-              <span>94%</span>
+              <span>{stats.five_star_pct}%</span>
             </div>
             <div className="review-bar-row">
               <span>4 ★</span>
               <div className="review-bar-track">
-                <div className="review-bar-fill" style={{ width: '6%' }}></div>
+                <div className="review-bar-fill" style={{ width: `${stats.four_star_pct}%` }}></div>
               </div>
-              <span>6%</span>
+              <span>{stats.four_star_pct}%</span>
             </div>
           </div>
           <div className="reviews-badges-strip">
@@ -52,7 +86,7 @@ export function ReviewsSection() {
 
         {/* CUSTOMER PHOTO REVIEW CARDS */}
         <div className="testimonials-grid reveal-stagger">
-          {TESTIMONIALS.map((review) => (
+          {reviews.map((review) => (
             <ReviewCard key={review.id} review={review} />
           ))}
         </div>

@@ -2,7 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 
-const GALLERY_ITEMS = [
+interface GalleryItem {
+  id?: string;
+  image: string;
+  title: string;
+  caption: string;
+}
+
+const DEFAULT_GALLERY_ITEMS: GalleryItem[] = [
   {
     image: '/frame1.jpg',
     title: 'Fatima — Red Persian Frame',
@@ -26,7 +33,29 @@ const GALLERY_ITEMS = [
 ];
 
 export function LookbookSection() {
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>(DEFAULT_GALLERY_ITEMS);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadDynamicGallery() {
+      try {
+        const res = await fetch('/api/gallery');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.items) && data.items.length > 0 && mounted) {
+            setGalleryItems(data.items);
+          }
+        }
+      } catch {
+        // Resilient fallback: preserves DEFAULT_GALLERY_ITEMS
+      }
+    }
+    loadDynamicGallery();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -34,18 +63,18 @@ export function LookbookSection() {
       if (e.key === 'Escape') setLightboxIndex(null);
       if (e.key === 'ArrowLeft')
         setLightboxIndex((prev) =>
-          prev! > 0 ? prev! - 1 : GALLERY_ITEMS.length - 1
+          prev! > 0 ? prev! - 1 : galleryItems.length - 1
         );
       if (e.key === 'ArrowRight')
         setLightboxIndex((prev) =>
-          prev! < GALLERY_ITEMS.length - 1 ? prev! + 1 : 0
+          prev! < galleryItems.length - 1 ? prev! + 1 : 0
         );
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lightboxIndex]);
+  }, [lightboxIndex, galleryItems.length]);
 
-  const activeItem = lightboxIndex !== null ? GALLERY_ITEMS[lightboxIndex] : null;
+  const activeItem = lightboxIndex !== null ? galleryItems[lightboxIndex] : null;
 
   return (
     <>
@@ -68,14 +97,14 @@ export function LookbookSection() {
           </div>
 
           <div className="real-gallery-grid reveal-stagger">
-            {GALLERY_ITEMS.map((item, idx) => (
+            {galleryItems.map((item, idx) => (
               <div
-                key={item.title}
+                key={item.id || item.title + idx}
                 className="gallery-card"
                 onClick={() => setLightboxIndex(idx)}
                 style={{ cursor: 'pointer' }}
               >
-                <img src={item.image} alt={item.caption} loading="lazy" />
+                <img src={item.image} alt={item.caption || item.title} loading="lazy" />
                 <div className="gallery-caption">
                   <span>{item.title}</span>
                 </div>
@@ -105,7 +134,7 @@ export function LookbookSection() {
           onClick={(e) => {
             e.stopPropagation();
             setLightboxIndex((prev) =>
-              prev! > 0 ? prev! - 1 : GALLERY_ITEMS.length - 1
+              prev! > 0 ? prev! - 1 : galleryItems.length - 1
             );
           }}
           aria-label="Previous"
@@ -118,7 +147,7 @@ export function LookbookSection() {
           onClick={(e) => {
             e.stopPropagation();
             setLightboxIndex((prev) =>
-              prev! < GALLERY_ITEMS.length - 1 ? prev! + 1 : 0
+              prev! < galleryItems.length - 1 ? prev! + 1 : 0
             );
           }}
           aria-label="Next"
@@ -134,7 +163,7 @@ export function LookbookSection() {
             <img
               id="lightboxImage"
               src={activeItem.image}
-              alt={activeItem.caption}
+              alt={activeItem.caption || activeItem.title}
             />
             <div className="lightbox-caption" id="lightboxCaption">
               {activeItem.title} — Authentic A4 Matte Black Wall Frame (₹499)

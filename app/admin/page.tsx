@@ -287,10 +287,86 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // Phase 3: Marketing CMS Summary
+  const [marketingSummary, setMarketingSummary] = useState({
+    announcementActive: true,
+    announcementBadge: 'FESTIVE GIFTING',
+    activeCampaigns: 0,
+    activeCampaignName: 'None',
+    pendingReviews: 0,
+    approvedReviews: 3,
+    galleryItemsCount: 4,
+  });
+
+  const fetchMarketingSummary = async () => {
+    try {
+      const [hpRes, revRes, campRes, galRes] = await Promise.allSettled([
+        fetch('/api/admin/homepage'),
+        fetch('/api/admin/reviews'),
+        fetch('/api/admin/campaigns'),
+        fetch('/api/admin/customer-gallery'),
+      ]);
+
+      let annActive = true;
+      let annBadge = 'FESTIVE GIFTING';
+      if (hpRes.status === 'fulfilled' && hpRes.value.ok) {
+        const hpJson = await hpRes.value.json();
+        if (hpJson.sections?.announcement_bar) {
+          annActive =
+            hpJson.sections.announcement_bar.is_active !== false &&
+            hpJson.sections.announcement_bar.content?.enabled !== false;
+          annBadge = hpJson.sections.announcement_bar.content?.badge || 'FESTIVE GIFTING';
+        }
+      }
+
+      let pendRevs = 0;
+      let appRevs = 0;
+      if (revRes.status === 'fulfilled' && revRes.value.ok) {
+        const revJson = await revRes.value.json();
+        if (Array.isArray(revJson.reviews)) {
+          pendRevs = revJson.reviews.filter((r: any) => r.status === 'pending').length;
+          appRevs = revJson.reviews.filter((r: any) => r.status === 'approved').length;
+        }
+      }
+
+      let actCamps = 0;
+      let campName = 'None';
+      if (campRes.status === 'fulfilled' && campRes.value.ok) {
+        const campJson = await campRes.value.json();
+        if (Array.isArray(campJson.campaigns)) {
+          const activeOnes = campJson.campaigns.filter((c: any) => c.is_active !== false);
+          actCamps = activeOnes.length;
+          if (activeOnes.length > 0) campName = activeOnes[0].name;
+        }
+      }
+
+      let galCount = 4;
+      if (galRes.status === 'fulfilled' && galRes.value.ok) {
+        const galJson = await galRes.value.json();
+        if (Array.isArray(galJson.items)) {
+          galCount = galJson.items.length;
+        }
+      }
+
+      setMarketingSummary({
+        announcementActive: annActive,
+        announcementBadge: annBadge,
+        activeCampaigns: actCamps,
+        activeCampaignName: campName,
+        pendingReviews: pendRevs,
+        approvedReviews: appRevs,
+        galleryItemsCount: galCount,
+      });
+    } catch (e) {
+      console.warn('Marketing summary fetch note:', e);
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
     fetchAnalytics();
     fetchInventorySummary();
+    fetchMarketingSummary();
   }, [timeframe]);
 
   useEffect(() => {
@@ -969,6 +1045,136 @@ export default function AdminDashboardPage() {
                       <div className="font-bold text-[#F5EFE6]">Audit &amp; Activity</div>
                       <div className="text-[10px] text-[#A39684]">Event ledger</div>
                     </div>
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Marketing CMS & Conversion Overview Widget */}
+            <div className="bg-[#141210] p-6 rounded-xl border border-[#2D2722]">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h3 className="font-serif text-base font-bold text-[#F5EFE6]">
+                    Marketing CMS &amp; Storefront Controls
+                  </h3>
+                  <p className="text-xs font-mono text-[#A39684] mt-0.5">
+                    Live announcement bar, active promotions, and customer social proof
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/admin/homepage"
+                    className="px-3 py-1.5 bg-[#1A1816] hover:bg-[#D4AF6A] text-[#D4AF6A] hover:text-[#0E0D0C] border border-[#2D2722] hover:border-[#D4AF6A] rounded-lg text-xs font-mono transition-all"
+                  >
+                    Manage Homepage →
+                  </Link>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono text-xs">
+                {/* 1. Announcement Bar */}
+                <div className="bg-[#1A1816] p-4 rounded-lg border border-[#2D2722] flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase text-[#A39684]">Announcement Bar</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          marketingSummary.announcementActive
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : 'bg-zinc-700/30 text-[#A39684]'
+                        }`}
+                      >
+                        {marketingSummary.announcementActive ? 'ACTIVE' : 'PAUSED'}
+                      </span>
+                    </div>
+                    <div className="font-bold text-[#F5EFE6] mt-2 truncate">
+                      {marketingSummary.announcementBadge}
+                    </div>
+                    <div className="text-[11px] text-[#A39684] mt-0.5">Top notification strip</div>
+                  </div>
+                  <Link
+                    href="/admin/homepage"
+                    className="text-[11px] text-[#D4AF6A] hover:underline mt-3 inline-block"
+                  >
+                    Edit Announcement →
+                  </Link>
+                </div>
+
+                {/* 2. Reviews Moderation */}
+                <div className="bg-[#1A1816] p-4 rounded-lg border border-[#2D2722] flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase text-[#A39684]">Customer Reviews</span>
+                      {marketingSummary.pendingReviews > 0 ? (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 animate-pulse">
+                          {marketingSummary.pendingReviews} PENDING
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">
+                          CLEARED
+                        </span>
+                      )}
+                    </div>
+                    <div className="font-bold text-[#F5EFE6] mt-2">
+                      {marketingSummary.approvedReviews} Verified Reviews
+                    </div>
+                    <div className="text-[11px] text-[#A39684] mt-0.5">
+                      4.9★ Average buyer rating
+                    </div>
+                  </div>
+                  <Link
+                    href="/admin/reviews"
+                    className="text-[11px] text-[#D4AF6A] hover:underline mt-3 inline-block"
+                  >
+                    Moderate Reviews →
+                  </Link>
+                </div>
+
+                {/* 3. Customer Gallery / Lookbook */}
+                <div className="bg-[#1A1816] p-4 rounded-lg border border-[#2D2722] flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase text-[#A39684]">Customer Lookbook</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#D4AF6A]/20 text-[#D4AF6A]">
+                        {marketingSummary.galleryItemsCount} PHOTOS
+                      </span>
+                    </div>
+                    <div className="font-bold text-[#F5EFE6] mt-2">Real Finished Works</div>
+                    <div className="text-[11px] text-[#A39684] mt-0.5">Interactive lightbox lookbook</div>
+                  </div>
+                  <Link
+                    href="/admin/customer-gallery"
+                    className="text-[11px] text-[#D4AF6A] hover:underline mt-3 inline-block"
+                  >
+                    Manage Gallery →
+                  </Link>
+                </div>
+
+                {/* 4. Promotional Campaigns */}
+                <div className="bg-[#1A1816] p-4 rounded-lg border border-[#2D2722] flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase text-[#A39684]">Active Promotion</span>
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                          marketingSummary.activeCampaigns > 0
+                            ? 'bg-purple-500/20 text-purple-400'
+                            : 'bg-zinc-700/30 text-[#A39684]'
+                        }`}
+                      >
+                        {marketingSummary.activeCampaigns > 0 ? 'RUNNING' : 'DEFAULT'}
+                      </span>
+                    </div>
+                    <div className="font-bold text-[#F5EFE6] mt-2 truncate">
+                      {marketingSummary.activeCampaignName}
+                    </div>
+                    <div className="text-[11px] text-[#A39684] mt-0.5">Storefront product badges</div>
+                  </div>
+                  <Link
+                    href="/admin/campaigns"
+                    className="text-[11px] text-[#D4AF6A] hover:underline mt-3 inline-block"
+                  >
+                    Configure Campaigns →
                   </Link>
                 </div>
               </div>

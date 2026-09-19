@@ -1,25 +1,57 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { DEFAULT_HOMEPAGE_CONTENT } from '@/lib/homepage-data';
 
 export function HeroSection() {
+  const [heroData, setHeroData] = useState(DEFAULT_HOMEPAGE_CONTENT.hero);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadDynamicHero() {
+      try {
+        const res = await fetch('/api/homepage');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.hero && mounted) {
+            setHeroData((prev) => ({
+              ...prev,
+              ...data.hero,
+            }));
+          }
+        }
+      } catch {
+        // Resilient fallback: preserves exact approved hardcoded content
+      }
+    }
+    loadDynamicHero();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <section className="hero">
       <div className="container hero-grid">
         <div className="reveal">
-          <div className="eyebrow">Real Handmade Wall Frames</div>
+          <div className="eyebrow">{heroData.eyebrow}</div>
           <h1>
-            Because some <em>names</em> deserve to be framed.
+            {heroData.title.includes('names') ? (
+              <>
+                Because some <em>names</em> deserve to be framed.
+              </>
+            ) : (
+              heroData.title
+            )}
           </h1>
-          <p>
-            Personalized A4 framed calligraphy crafted on authentic Persian &amp; oriental aesthetic backgrounds —
-            hand-finished, delivered to your door.
-          </p>
+          <p>{heroData.description}</p>
           <div className="hero-cta-row">
-            <Link className="btn" href="#create">
-              Customize Yours
+            <Link className="btn" href={heroData.cta_primary_link || '#create'}>
+              {heroData.cta_primary_label || 'Customize Yours'}
             </Link>
-            <Link className="btn btn-ghost" href="#gallery">
-              See Real Works
+            <Link className="btn btn-ghost" href={heroData.cta_secondary_link || '#gallery'}>
+              {heroData.cta_secondary_label || 'See Real Works'}
             </Link>
           </div>
           <div className="hero-trust-line">
@@ -58,9 +90,9 @@ export function HeroSection() {
               loop
               playsInline
               preload="none"
-              poster="/design1.jpg"
+              poster={heroData.poster_url || '/design1.jpg'}
             >
-              <source src="/hero-video.mp4" type="video/mp4" />
+              <source src={heroData.video_url || '/hero-video.mp4'} type="video/mp4" />
               Your browser does not support the video tag.
             </video>
           </div>

@@ -25,12 +25,16 @@ export default function AdminLayoutClient({
   const isDashboardActive = pathname === '/admin' && !activeTab;
   const isOrdersActive = pathname === '/admin/orders' || (pathname === '/admin' && activeTab === 'orders');
   const isCustomersActive = pathname === '/admin/customers' || (pathname === '/admin' && activeTab === 'customers');
-  const isReviewsActive = pathname === '/admin' && activeTab === 'reviews';
+  const isReviewsActive = pathname === '/admin/reviews' || (pathname === '/admin' && activeTab === 'reviews');
   const isProductsActive = pathname === '/admin/products';
   const isInventoryActive = pathname === '/admin/inventory';
   const isDesignsActive = pathname === '/admin/designs';
   const isCollectionsActive = pathname === '/admin/collections';
   const isMediaActive = pathname === '/admin/media';
+  const isHomepageActive = pathname === '/admin/homepage';
+  const isGalleryActive = pathname === '/admin/customer-gallery';
+  const isSeoActive = pathname === '/admin/seo';
+  const isCampaignsActive = pathname === '/admin/campaigns';
   const isActivityActive = pathname === '/admin/activity';
   const isSettingsActive = pathname === '/admin/settings';
 
@@ -149,6 +153,90 @@ export default function AdminLayoutClient({
         <span className="text-base">📸</span>
         <span>Media Library</span>
       </Link>
+
+      {/* Marketing & Storefront Section Divider */}
+      <div className="pt-2 pb-1 px-4">
+        <span className="text-[10px] uppercase font-mono tracking-wider text-[#A39684]/70 font-semibold">
+          Marketing &amp; CMS
+        </span>
+      </div>
+
+      {/* Homepage CMS */}
+      <Link
+        href="/admin/homepage"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isHomepageActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">📣</span>
+        <span>Homepage CMS</span>
+      </Link>
+
+      {/* Customer Reviews Moderation */}
+      <Link
+        href="/admin/reviews"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isReviewsActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">⭐</span>
+        <span>Reviews Moderation</span>
+      </Link>
+
+      {/* Customer Gallery / Lookbook */}
+      <Link
+        href="/admin/customer-gallery"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isGalleryActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">🖼️</span>
+        <span>Customer Lookbook</span>
+      </Link>
+
+      {/* SEO Metadata */}
+      <Link
+        href="/admin/seo"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isSeoActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">🔍</span>
+        <span>SEO &amp; Meta</span>
+      </Link>
+
+      {/* Promotional Campaigns & Badges */}
+      <Link
+        href="/admin/campaigns"
+        onClick={onItemClick}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-medium transition-all ${
+          isCampaignsActive
+            ? 'bg-[#D4AF6A]/15 text-[#D4AF6A] font-semibold border border-[#D4AF6A]/30 shadow-sm'
+            : 'text-[#A39684] hover:bg-[#D4AF6A]/5 hover:text-[#F5EFE6]'
+        }`}
+      >
+        <span className="text-base">🏷️</span>
+        <span>Campaigns &amp; Badges</span>
+      </Link>
+
+      {/* System Section Divider */}
+      <div className="pt-2 pb-1 px-4">
+        <span className="text-[10px] uppercase font-mono tracking-wider text-[#A39684]/70 font-semibold">
+          System &amp; Settings
+        </span>
+      </div>
 
       {/* Activity / Audit Log */}
       <Link

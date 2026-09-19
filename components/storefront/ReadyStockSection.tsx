@@ -11,14 +11,26 @@ export function ReadyStockSection() {
   >('all');
 
   const [products, setProducts] = useState<ReadyStockItem[]>(READY_STOCK_PRODUCTS);
+  const [productBadges, setProductBadges] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let mounted = true;
     async function loadDynamicReadyStock() {
       try {
-        const res = await fetch('/api/products?type=ready_stock');
-        if (res.ok) {
-          const data = await res.json();
+        const [prodRes, campRes] = await Promise.allSettled([
+          fetch('/api/products?type=ready_stock'),
+          fetch('/api/campaigns'),
+        ]);
+
+        if (campRes.status === 'fulfilled' && campRes.value.ok) {
+          const campData = await campRes.value.json();
+          if (campData && campData.productBadges && mounted) {
+            setProductBadges(campData.productBadges);
+          }
+        }
+
+        if (prodRes.status === 'fulfilled' && prodRes.value.ok) {
+          const data = await prodRes.value.json();
           if (data && data.success && Array.isArray(data.products) && data.products.length > 0 && mounted) {
             const mapped: ReadyStockItem[] = data.products
               .filter((p: any) => p.is_active !== false)
@@ -128,6 +140,7 @@ export function ReadyStockSection() {
               key={product.id}
               product={product}
               priority={idx < 4}
+              badgeOverride={productBadges[product.id]}
             />
           ))}
         </div>
